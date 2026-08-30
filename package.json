@@ -27,10 +27,13 @@
       "output": "release",
       "buildResources": "build"
     },
+    "artifactName": "MuMu-Reconnect-Setup-${version}.${ext}",
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] },
-        { "target": "portable", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
       ]
     },
     "nsis": {
@@ -39,9 +42,6 @@
       "perMachine": false,
       "createDesktopShortcut": true,
       "shortcutName": "MuMu Reconnect"
-    },
-    "portable": {
-      "artifactName": "MuMu-Reconnect-${version}-portable.exe"
     }
   }
 }
