@@ -1,0 +1,11 @@
+node_modules/
+release/
+dist/
+__pycache__/
+*.log
+*.log.1
+config.json
+
+# Local Python prototype - contains a personal private server link.
+main.py
+main.py.bak

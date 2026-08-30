@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:;"
+    />
+    <title>MuMu Reconnect</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark">MR</span>
+        <div>
+          <h1>MuMu Reconnect</h1>
+          <p id="env-line" class="muted">Looking for MuMuPlayer...</p>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <button id="settings-btn" class="ghost">Settings</button>
+        <button id="power-btn" class="primary">Start watching</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="sidebar">
+        <div class="sidebar-head">
+          <h2>Instances</h2>
+          <span id="instance-count" class="pill">0</span>
+        </div>
+
+        <ul id="instance-list" class="instance-list"></ul>
+
+        <p id="instance-empty" class="empty">
+          No running MuMu instances yet. Start one and it shows up here.
+        </p>
+      </section>
+
+      <section id="detail" class="detail">
+        <div id="detail-empty" class="placeholder">
+          <h2>Pick an instance</h2>
+          <p>
+            Select an instance on the left to set the game or private server
+            link it should rejoin.
+          </p>
+        </div>
+
+        <div id="detail-body" class="hidden">
+          <div class="detail-head">
+            <div>
+              <h2 id="detail-name">-</h2>
+              <p id="detail-serial" class="muted mono">-</p>
+            </div>
+
+            <div class="detail-head-right">
+              <span id="detail-state" class="state-badge">-</span>
+              <button id="rejoin-btn" class="ghost">Rejoin now</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <label class="switch-row">
+              <input id="enabled" type="checkbox" />
+              <span>
+                <strong>Auto-reconnect this instance</strong>
+                <small
+                  >Watch it and rejoin the link below whenever it drops out of
+                  the game.</small
+                >
+              </span>
+            </label>
+          </div>
+
+          <div class="card">
+            <label class="field">
+              <span class="field-label">Game or private server link</span>
+              <input
+                id="join-url"
+                type="text"
+                spellcheck="false"
+                placeholder="https://www.roblox.com/games/..."
+              />
+              <small class="hint">
+                Paste the Roblox link this account should join. A private
+                server link works too - it is stored on this PC only.
+              </small>
+            </label>
+          </div>
+
+          <details class="card advanced">
+            <summary>Advanced</summary>
+
+            <label class="field">
+              <span class="field-label">App package</span>
+              <input id="package" type="text" spellcheck="false" />
+              <small class="hint">
+                Leave this alone unless you use a different Roblox build.
+              </small>
+            </label>
+
+            <label class="field">
+              <span class="field-label">Launch component</span>
+              <input id="launch-component" type="text" spellcheck="false" />
+              <small class="hint">
+                Aims the link straight at Roblox so the emulator browser
+                cannot swallow it. Clear it to let Android choose.
+              </small>
+            </label>
+          </details>
+
+          <div class="stats">
+            <div>
+              <span class="stat-value" id="stat-reconnects">0</span>
+              <span class="stat-label">reconnects this session</span>
+            </div>
+            <div>
+              <span class="stat-value" id="stat-last">never</span>
+              <span class="stat-label">last reconnect</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <section class="logpane">
+      <div class="logpane-head">
+        <h2>Activity</h2>
+        <div>
+          <button id="open-logs" class="ghost small">Open log folder</button>
+          <button id="clear-log" class="ghost small">Clear</button>
+        </div>
+      </div>
+      <ol id="log" class="log"></ol>
+    </section>
+
+    <div id="settings-modal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Settings</h2>
+          <button id="settings-close" class="ghost small">Close</button>
+        </div>
+
+        <label class="field">
+          <span class="field-label">MuMuPlayer folder</span>
+          <div class="row">
+            <input id="mumu-root" type="text" spellcheck="false" readonly />
+            <button id="browse-root" class="ghost">Browse</button>
+          </div>
+          <small id="root-hint" class="hint"></small>
+        </label>
+
+        <div class="grid">
+          <label class="field">
+            <span class="field-label">Check every (s)</span>
+            <input id="checkInterval" type="number" min="2" max="120" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">Scan for instances (s)</span>
+            <input id="discoveryInterval" type="number" min="2" max="300" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">Grace before rejoin (s)</span>
+            <input id="loadingGrace" type="number" min="5" max="600" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">Cooldown between tries (s)</span>
+            <input id="reconnectCooldown" type="number" min="5" max="600" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">Join timeout (s)</span>
+            <input id="startTimeout" type="number" min="15" max="600" />
+          </label>
+
+          <label class="field">
+            <span class="field-label">Attempts per round</span>
+            <input id="maxAttempts" type="number" min="1" max="10" />
+          </label>
+        </div>
+
+        <label class="switch-row">
+          <input id="autoStart" type="checkbox" />
+          <span><strong>Start watching when the app opens</strong></span>
+        </label>
+
+        <label class="switch-row">
+          <input id="minimizeToTray" type="checkbox" />
+          <span>
+            <strong>Keep running in the tray</strong>
+            <small>Closing the window hides it instead of stopping.</small>
+          </span>
+        </label>
+
+        <p class="muted small">
+          Settings and links are saved in your Windows app-data folder, never
+          inside the app itself.
+        </p>
+      </div>
+    </div>
+
+    <script src="renderer.js"></script>
+  </body>
+</html>

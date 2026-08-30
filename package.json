@@ -1,0 +1,47 @@
+{
+  "name": "mumu-reconnect",
+  "productName": "MuMu Reconnect",
+  "version": "1.0.0",
+  "description": "Keeps Roblox games alive on MuMuPlayer instances by detecting disconnects and rejoining automatically.",
+  "main": "src/main/main.js",
+  "author": "Xan3vo",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "pack": "electron-builder --win --dir"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.xan3vo.mumureconnect",
+    "productName": "MuMu Reconnect",
+    "files": [
+      "src/**/*",
+      "!**/*.map"
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "MuMu Reconnect"
+    },
+    "portable": {
+      "artifactName": "MuMu-Reconnect-${version}-portable.exe"
+    }
+  }
+}
