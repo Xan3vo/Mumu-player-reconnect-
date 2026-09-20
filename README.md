@@ -1,6 +1,6 @@
 # MuMu Reconnect
 
-Keeps your Roblox games alive on **MuMuPlayer 12**. It watches every running
+Keeps your Roblox games alive on **MuMuPlayer**. It watches every running
 instance, notices when one drops back to the Roblox home screen, and rejoins
 the link you set for that instance — including private server links.
 
@@ -51,6 +51,25 @@ checking a link works before leaving it running.
 
 If MuMuPlayer is installed somewhere unusual, point the app at the folder in
 Settings — the one that contains `nx_device` and `nx_main`.
+
+### If it says it cannot find MuMuPlayer
+
+Pick the **install** folder, not the data folder: the one holding `nx_device`
+and `nx_main` side by side. Usually one of
+
+```
+C:\Program Files\Netease\MuMuPlayer
+C:\Program Files\Netease\MuMuPlayerGlobal-12.0
+```
+
+The numbered folder inside `nx_device` is the emulator build, and it differs
+between versions — `12.0` on MuMuPlayer 12, `15.0` on newer ones. Any of them
+works; the app picks the newest it finds. To locate it, paste this into
+PowerShell (not wrapped in `powershell -c`, which eats the `$_`):
+
+```powershell
+Get-PSDrive -PSProvider FileSystem | %{ Get-ChildItem $_.Root -Filter nx_device -Directory -Recurse -Depth 4 -ErrorAction SilentlyContinue } | %{ $_.Parent.FullName }
+```
 
 ## Your links stay yours
 

@@ -158,10 +158,12 @@ function renderStatus() {
 
   $('mumu-root').value = status.mumuRoot || '';
 
+  const version = status.mumuVersion ? ' ' + status.mumuVersion : '';
+
   $('root-hint').textContent = status.adbFound
     ? status.managerFound
-      ? 'MuMuPlayer 12 detected.'
-      : 'Found ADB but not MuMuManager. Instance names may be missing.'
+      ? 'MuMuPlayer' + version + ' detected.'
+      : 'Found ADB' + version + ' but not MuMuManager. Instance names may be missing.'
     : 'Pick the folder that holds nx_device and nx_main.';
 
   renderDetail();
