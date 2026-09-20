@@ -68,6 +68,7 @@ class Watchdog extends EventEmitter {
       mumuRoot: this.mumuRoot,
       adbPath: this.adbPath,
       adbFound: Boolean(this.adbPath && fs.existsSync(this.adbPath)),
+      mumuVersion: this.mumuRoot ? paths.versionFor(this.mumuRoot) : '',
       managerFound: Boolean(this.managerPath && fs.existsSync(this.managerPath)),
       configuredRoot: this.store.getMuMuRoot()
     };
@@ -211,7 +212,18 @@ class Watchdog extends EventEmitter {
 
     this.log('Watching for MuMu instances.');
 
-    await this.adb.startServer();
+    const server = await this.adb.startServer();
+
+    // A different ADB (Android Studio, another emulator) already holding
+    // port 5037 makes MuMu's adb talk to a server it cannot drive. The
+    // symptom is "no instances" with no other clue, so name it.
+    if (/version|killing|out of date/i.test(server.stderr || '')) {
+      this.log(
+        'Another ADB server is already running and may hide instances. ' +
+          'Close other emulators or Android tools if nothing is found.',
+        { level: 'warn' }
+      );
+    }
 
     this.discoveryLoop();
 
@@ -411,6 +423,18 @@ class Watchdog extends EventEmitter {
 
     const settings = this.store.getInstance(info.key);
     const state = await this.probe.getState(serial, settings.package);
+
+    // Without the socket check every session looks like a game, so a
+    // stuck instance would never be rejoined. Say so once.
+    if (this.probe.isDegraded(serial) && !info.degradedLogged) {
+      info.degradedLogged = true;
+
+      this.log(
+        'Cannot read the network state on this instance, so being in a ' +
+          'game cannot be confirmed - rejoins will not trigger here.',
+        { label: this.labelFor(serial), level: 'warn' }
+      );
+    }
 
     if (state === 'UNKNOWN') {
       // Busy or still booting. Stay quiet and retry rather than

@@ -3,7 +3,7 @@
 const fs = require('fs');
 const { execFile } = require('child_process');
 
-// MuMuPlayer 12 assigns instance N the ADB port 16384 + (32 * N).
+// MuMuPlayer assigns instance N the ADB port 16384 + (32 * N).
 // Only used as a fallback when MuMuManager cannot be queried.
 const BASE_PORT = 16384;
 const PORT_STRIDE = 32;
@@ -70,7 +70,15 @@ function queryManager(managerPath) {
             continue;
           }
 
-          const started = Boolean(record.is_android_started);
+          // Field names drift between MuMuManager builds, so accept any
+          // of the spellings that have meant "Android is up", and treat
+          // a published ADB port as proof on its own.
+          const started = Boolean(
+            record.is_android_started ||
+              record.is_process_started ||
+              record.player_state === 'start_finished' ||
+              record.adb_port
+          );
           const host = record.adb_host_ip || '127.0.0.1';
 
           // Android is up but the port has not been published yet.
@@ -91,7 +99,7 @@ function queryManager(managerPath) {
 }
 
 /**
- * Fallback discovery: try the documented MuMu 12 port for every possible
+ * Fallback discovery: try the documented MuMu port for every possible
  * instance slot and keep whatever answers.
  */
 async function probePorts(adb) {

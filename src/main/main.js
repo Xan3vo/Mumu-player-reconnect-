@@ -168,7 +168,11 @@ function registerIpc() {
     const chosen = result.filePaths[0];
 
     if (!paths.isMuMuRoot(chosen)) {
-      return { error: 'That folder does not contain MuMuPlayer 12.' };
+      return {
+        error:
+          'No MuMuPlayer found there. Pick the folder that holds ' +
+          'nx_device and nx_main.'
+      };
     }
 
     store.setMuMuRoot(chosen);

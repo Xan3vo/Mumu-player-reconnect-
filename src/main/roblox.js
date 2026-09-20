@@ -29,10 +29,31 @@ class RobloxProbe {
   constructor(adb) {
     this.adb = adb;
     this.uidCache = new Map();
+
+    // Devices where the in-game check could not run at all. Tracked so
+    // the app can say so out loud instead of quietly calling every
+    // session healthy - see the null branch in getState.
+    this.degraded = new Set();
   }
 
   forget(device) {
-    this.uidCache.delete(device);
+    // getUid keys by device AND package, so deleting the bare device
+    // would leave every real entry behind and keep serving a stale uid
+    // after Roblox is reinstalled.
+    const prefix = device + '|';
+
+    for (const key of [...this.uidCache.keys()]) {
+      if (key.startsWith(prefix)) {
+        this.uidCache.delete(key);
+      }
+    }
+
+    this.degraded.delete(device);
+  }
+
+  /** True when the in-game check is unavailable on this device. */
+  isDegraded(device) {
+    return this.degraded.has(device);
   }
 
   async getForegroundWindow(device) {
@@ -99,6 +120,7 @@ class RobloxProbe {
     const uid = await this.getUid(device, pkg);
 
     if (uid === null) {
+      this.degraded.add(device);
       return null;
     }
 
@@ -109,9 +131,14 @@ class RobloxProbe {
 
     // "cat" exits non-zero when either file is missing but still prints
     // the one it could read, so judge by the output, not the exit code.
+    // Newer Android builds can hide /proc/net entirely from the shell
+    // user, which is why this path has to stay survivable.
     if (!stdout.trim()) {
+      this.degraded.add(device);
       return null;
     }
+
+    this.degraded.delete(device);
 
     for (const line of stdout.split(/\r?\n/)) {
       const parts = line.trim().split(/\s+/);
