@@ -1,7 +1,7 @@
 {
   "name": "mumu-reconnect",
   "productName": "MuMu Reconnect",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Keeps Roblox games alive on MuMuPlayer instances by detecting disconnects and rejoining automatically.",
   "main": "src/main/main.js",
   "author": "Xan3vo",
@@ -32,7 +32,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
