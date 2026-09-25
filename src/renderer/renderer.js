@@ -169,6 +169,15 @@ function renderStatus() {
   renderDetail();
 }
 
+/** Swap the maximise glyph for a restore one, and the tooltip with it. */
+function setMaximized(maximized) {
+  const button = $('win-max');
+
+  button.classList.toggle('maximized', Boolean(maximized));
+  button.title = maximized ? 'Restore' : 'Maximize';
+  button.setAttribute('aria-label', button.title);
+}
+
 function appendLog(entry) {
   const log = $('log');
   const li = document.createElement('li');
@@ -306,6 +315,32 @@ function wire() {
     saveInstance({ launchComponent: event.target.value.trim() });
   });
 
+  // Update banner. Only ever shown when a newer release really exists.
+  window.api.onUpdate((update) => {
+    $('update-text').textContent =
+      'Version ' + update.latest + ' is available. You are on ' +
+      update.current + '.';
+
+    $('update-link').onclick = () => window.api.openExternal(update.url);
+    $('update-banner').classList.remove('hidden');
+  });
+
+  $('update-dismiss').addEventListener('click', () => {
+    $('update-banner').classList.add('hidden');
+  });
+
+  // Window controls (the window is frameless)
+  $('win-min').addEventListener('click', () => window.api.minimizeWindow());
+
+  $('win-max').addEventListener('click', async () => {
+    setMaximized(await window.api.toggleMaximize());
+  });
+
+  $('win-close').addEventListener('click', () => window.api.closeWindow());
+
+  window.api.onMaximized(setMaximized);
+  window.api.isMaximized().then(setMaximized);
+
   // Settings modal
   $('settings-btn').addEventListener('click', () => {
     fillGeneral();
@@ -314,6 +349,23 @@ function wire() {
 
   $('settings-close').addEventListener('click', () => {
     $('settings-modal').classList.add('hidden');
+  });
+
+  $('selfcheck-btn').addEventListener('click', async (event) => {
+    const button = event.target;
+
+    button.disabled = true;
+    button.textContent = 'Checking...';
+
+    try {
+      // The report is written straight to the log, so close the modal
+      // and let them watch it land in Activity.
+      await window.api.diagnose();
+      $('settings-modal').classList.add('hidden');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Run self-check';
+    }
   });
 
   $('settings-modal').addEventListener('click', (event) => {

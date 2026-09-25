@@ -12,6 +12,19 @@ const LAUNCH_COMPONENT = 'com.roblox.client/.ActivityProtocolLaunch';
 
 const PACKAGE = 'com.roblox.client';
 
+// Roblox game servers answer on ephemeral ports. Everything the client
+// talks to below this is ordinary traffic - QUIC on 443, DNS on 53 -
+// and must not be mistaken for a live game.
+const MIN_GAME_REMOTE_PORT = 1024;
+
+// How long to wait for Roblox to actually die after force-stop before
+// giving up and launching anyway.
+const STOP_TIMEOUT = 15000;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // Activities that mean Roblox is on its way up but not in-game yet.
 const LOADING_ACTIVITIES = ['ActivitySplash', 'ActivityProtocolLaunch'];
 
@@ -109,10 +122,18 @@ class RobloxProbe {
    * screen" - both look identical to the activity manager, because
    * Roblox renders both from ActivityNativeMain.
    *
-   * The game connection is an *unconnected* UDP socket (remote port 0)
-   * owned by Roblox. Roblox's ordinary web traffic uses UDP too, but
-   * over QUIC, which shows up as a socket connected to port 443 - so the
-   * remote port is what tells them apart.
+   * The game connection is a UDP socket *connected* to a Roblox game
+   * server on a high port, e.g. 128.116.56.33:60806. Measured against a
+   * live instance: on the home screen Roblox holds exactly one UDP
+   * socket and it is unconnected (remote 0.0.0.0:0); in a game it holds
+   * four, one of which carries that remote address.
+   *
+   * So an unconnected socket proves nothing - it is present in both
+   * states - and matching on one is what used to report the home screen
+   * as a live game and stop the watchdog from ever rejoining.
+   *
+   * Anything below MIN_GAME_REMOTE_PORT is Roblox's ordinary traffic
+   * rather than a game: QUIC on 443, DNS on 53.
    *
    * Returns true, false, or null when the check could not be run.
    */
@@ -154,9 +175,15 @@ class RobloxProbe {
         continue;
       }
 
+      // An all-zero remote address is an unconnected socket, which
+      // Roblox keeps on the home screen too.
+      if (/^0+$/.test(remote[0])) {
+        continue;
+      }
+
       const remotePort = Number.parseInt(remote[1], 16);
 
-      if (!Number.isNaN(remotePort) && remotePort === 0) {
+      if (!Number.isNaN(remotePort) && remotePort >= MIN_GAME_REMOTE_PORT) {
         return true;
       }
     }
@@ -218,6 +245,35 @@ class RobloxProbe {
     await this.adb.run(['shell', 'am', 'force-stop', pkg], { device });
   }
 
+  /**
+   * Force-stop Roblox and wait until the process is genuinely gone.
+   *
+   * force-stop returns immediately, long before Android has finished
+   * tearing the process down. Launching into a half-dead Roblox is how
+   * a rejoin "succeeds" and still lands on the home screen, so wait for
+   * the pid to disappear rather than guessing at a sleep.
+   *
+   * Returns true when it died, false when it outlasted the timeout.
+   */
+  async forceStopAndWait(device, pkg = PACKAGE, timeout = STOP_TIMEOUT) {
+    await this.forceStop(device, pkg);
+
+    const deadline = Date.now() + timeout;
+
+    while (Date.now() < deadline) {
+      if (!(await this.isRunning(device, pkg))) {
+        // The process is gone, but Android still needs a moment to
+        // release its slot before an intent will start it cleanly.
+        await sleep(750);
+        return true;
+      }
+
+      await sleep(500);
+    }
+
+    return false;
+  }
+
   async sendLaunchIntent(device, url, component) {
     const args = [
       'shell',
@@ -255,5 +311,6 @@ module.exports = {
   PACKAGE,
   GAME_ACTIVITY,
   LAUNCH_COMPONENT,
-  LOADING_ACTIVITIES
+  LOADING_ACTIVITIES,
+  MIN_GAME_REMOTE_PORT
 };

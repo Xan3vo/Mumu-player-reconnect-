@@ -15,6 +15,7 @@ const {
 const { Store } = require('./store');
 const { Watchdog } = require('./watchdog');
 const paths = require('./paths');
+const { checkForUpdate } = require('./update');
 
 let mainWindow = null;
 let tray = null;
@@ -42,7 +43,11 @@ function createWindow() {
     height: 720,
     minWidth: 880,
     minHeight: 560,
-    backgroundColor: '#0f1115',
+    backgroundColor: '#0b0d12',
+    // The title bar is drawn by the renderer as part of the top bar, so
+    // the app gets one continuous surface instead of a Windows strip in
+    // a different colour sitting above it.
+    frame: false,
     autoHideMenuBar: true,
     title: 'MuMu Reconnect',
     icon: ICON_PATH,
@@ -68,6 +73,11 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  // The custom maximise button has to follow the window, which can also
+  // be maximised by dragging to the top edge or double-clicking the bar.
+  mainWindow.on('maximize', () => send('window:maximized', true));
+  mainWindow.on('unmaximize', () => send('window:maximized', false));
 }
 
 function showWindow() {
@@ -182,6 +192,40 @@ function registerIpc() {
     return status;
   });
 
+  ipcMain.handle('window:minimize', () => {
+    if (mainWindow) {
+      mainWindow.minimize();
+    }
+  });
+
+  ipcMain.handle('window:toggleMaximize', () => {
+    if (!mainWindow) {
+      return false;
+    }
+
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+
+    return mainWindow.isMaximized();
+  });
+
+  // Goes through the same 'close' handler as the old system button, so
+  // the tray setting still decides between hiding and quitting.
+  ipcMain.handle('window:close', () => {
+    if (mainWindow) {
+      mainWindow.close();
+    }
+  });
+
+  ipcMain.handle('window:isMaximized', () =>
+    Boolean(mainWindow && mainWindow.isMaximized())
+  );
+
+  ipcMain.handle('app:diagnose', () => watchdog.diagnose());
+
   ipcMain.handle('app:openLogs', () => {
     shell.openPath(app.getPath('userData'));
   });
@@ -207,6 +251,14 @@ app.whenReady().then(async () => {
   if (store.getGeneral().autoStart) {
     await watchdog.start();
   }
+
+  // Never blocks startup and never surfaces a failure: if the check
+  // cannot run, the app behaves exactly as it did before.
+  checkForUpdate(app.getVersion()).then((update) => {
+    if (update) {
+      send('app:update', update);
+    }
+  });
 });
 
 app.on('before-quit', () => {

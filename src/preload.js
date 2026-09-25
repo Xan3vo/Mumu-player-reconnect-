@@ -17,6 +17,19 @@ contextBridge.exposeInMainWorld('api', {
   setMuMuRoot: (root) => ipcRenderer.invoke('settings:mumuRoot', root),
   browseMuMuRoot: () => ipcRenderer.invoke('settings:browseRoot'),
 
+  minimizeWindow: () => ipcRenderer.invoke('window:minimize'),
+  toggleMaximize: () => ipcRenderer.invoke('window:toggleMaximize'),
+  closeWindow: () => ipcRenderer.invoke('window:close'),
+  isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+
+  onMaximized: (handler) =>
+    ipcRenderer.on('window:maximized', (event, value) => handler(value)),
+
+  diagnose: () => ipcRenderer.invoke('app:diagnose'),
+
+  onUpdate: (handler) =>
+    ipcRenderer.on('app:update', (event, update) => handler(update)),
+
   openLogs: () => ipcRenderer.invoke('app:openLogs'),
   openExternal: (url) => ipcRenderer.invoke('app:openExternal', url),
 
