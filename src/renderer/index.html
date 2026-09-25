@@ -23,7 +23,38 @@
         <button id="settings-btn" class="ghost">Settings</button>
         <button id="power-btn" class="primary">Start watching</button>
       </div>
+
+      <div class="window-controls">
+        <button id="win-min" class="winctl" title="Minimize" aria-label="Minimize">
+          <svg viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M0 5h10" />
+          </svg>
+        </button>
+
+        <button id="win-max" class="winctl" title="Maximize" aria-label="Maximize">
+          <svg class="ico-max" viewBox="0 0 10 10" aria-hidden="true">
+            <rect x="0.5" y="0.5" width="9" height="9" />
+          </svg>
+          <svg class="ico-restore" viewBox="0 0 10 10" aria-hidden="true">
+            <rect x="0.5" y="2.5" width="7" height="7" />
+            <path d="M2.5 2.5V0.5h7v7h-2" />
+          </svg>
+        </button>
+
+        <button id="win-close" class="winctl close" title="Close" aria-label="Close">
+          <svg viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" />
+          </svg>
+        </button>
+      </div>
     </header>
+
+    <div id="update-banner" class="update-banner hidden">
+      <span class="update-dot"></span>
+      <span id="update-text">An update is available.</span>
+      <button id="update-link" class="ghost small">Download</button>
+      <button id="update-dismiss" class="ghost small">Later</button>
+    </div>
 
     <main class="layout">
       <section class="sidebar">
@@ -151,6 +182,17 @@
           </div>
           <small id="root-hint" class="hint"></small>
         </label>
+
+        <div class="selfcheck">
+          <div>
+            <strong>Not sure it works on this PC?</strong>
+            <small>
+              Walks the whole detection chain on this machine and reports
+              which step fails. The result appears in Activity.
+            </small>
+          </div>
+          <button id="selfcheck-btn" class="ghost">Run self-check</button>
+        </div>
 
         <div class="grid">
           <label class="field">

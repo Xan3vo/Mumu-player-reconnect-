@@ -583,8 +583,18 @@ class Watchdog extends EventEmitter {
           break;
         }
 
-        await this.probe.forceStop(serial, settings.package);
-        await sleep(2000);
+        const died = await this.probe.forceStopAndWait(
+          serial,
+          settings.package
+        );
+
+        if (!died) {
+          this.log(
+            'Roblox did not shut down in time. Launching anyway, which ' +
+              'may land on the home screen.',
+            { label, level: 'warn' }
+          );
+        }
 
         // Aim the intent straight at Roblox first. Without this the link
         // lands in the built-in browser on any instance where Roblox is
@@ -702,6 +712,136 @@ class Watchdog extends EventEmitter {
     );
 
     return true;
+  }
+
+  // ---------------------------------------------------------------
+  //  Self-check
+  // ---------------------------------------------------------------
+
+  /**
+   * Walk the whole detection chain on this PC and report each step.
+   *
+   * Everything the watchdog depends on varies between machines: where
+   * MuMu is installed, which emulator build it ships, whether the
+   * Android image lets the shell user read /proc/net. When it does not
+   * work on someone's setup, this says which link broke instead of
+   * leaving them with an app that quietly never rejoins.
+   */
+  async diagnose() {
+    const steps = [];
+
+    const ok = (name, detail) => steps.push({ name, status: 'ok', detail });
+    const bad = (name, detail) => steps.push({ name, status: 'bad', detail });
+    const warn = (name, detail) => steps.push({ name, status: 'warn', detail });
+
+    this.refreshPaths();
+
+    const status = this.getStatus();
+
+    if (!status.mumuRoot) {
+      bad('MuMuPlayer', 'Not found. Set the folder in Settings.');
+      return this.reportDiagnosis(steps);
+    }
+
+    ok('MuMuPlayer', status.mumuRoot);
+
+    if (status.adbFound) {
+      ok('Emulator build', status.mumuVersion || 'unknown');
+    } else {
+      bad('Emulator build', 'No adb.exe under nx_device.');
+      return this.reportDiagnosis(steps);
+    }
+
+    if (status.managerFound) {
+      ok('MuMuManager', 'Found.');
+    } else {
+      warn('MuMuManager', 'Missing. Instance names fall back to ports.');
+    }
+
+    await this.adb.startServer();
+
+    const records = await mumu.queryManager(this.managerPath);
+    const list = records === null ? await mumu.probePorts(this.adb) : records;
+    const started = list.filter((r) => r.started && r.serial);
+
+    if (!started.length) {
+      warn('Instances', 'None running. Start one and run this again.');
+      return this.reportDiagnosis(steps);
+    }
+
+    ok('Instances', started.length + ' running.');
+
+    const target = started[0];
+    const serial = target.serial;
+
+    if (!(await this.adb.connect(serial))) {
+      bad('ADB connect', 'Could not reach ' + serial + '.');
+      return this.reportDiagnosis(steps);
+    }
+
+    ok('ADB connect', serial);
+
+    const settings = this.store.getInstance(target.name);
+    const pkg = settings.package;
+
+    const focus = await this.probe.getForegroundWindow(serial);
+
+    if (focus) {
+      ok('Foreground app', 'Readable.');
+    } else {
+      bad('Foreground app', 'dumpsys returned nothing.');
+    }
+
+    const uid = await this.probe.getUid(serial, pkg);
+
+    if (uid === null) {
+      bad('Roblox installed', pkg + ' not found on ' + target.name + '.');
+      return this.reportDiagnosis(steps);
+    }
+
+    ok('Roblox installed', pkg + ' (uid ' + uid + ')');
+
+    // The load-bearing one. Everything else can degrade; if this cannot
+    // be read, the app can never tell a game from the home screen.
+    const inGame = await this.probe.hasGameSocket(serial, pkg);
+
+    if (inGame === null) {
+      bad(
+        'Game detection',
+        'Cannot read /proc/net on this Android build. Rejoins will not ' +
+          'trigger for this instance.'
+      );
+    } else {
+      ok(
+        'Game detection',
+        'Working - currently ' + (inGame ? 'in a game.' : 'not in a game.')
+      );
+    }
+
+    ok('Reported state', await this.probe.getState(serial, pkg));
+
+    return this.reportDiagnosis(steps);
+  }
+
+  reportDiagnosis(steps) {
+    this.log('--- Self-check ---');
+
+    for (const step of steps) {
+      this.log(step.name + ': ' + step.detail, {
+        level: step.status === 'ok' ? 'info' : step.status
+      });
+    }
+
+    const broken = steps.filter((s) => s.status === 'bad');
+
+    this.log(
+      broken.length
+        ? 'Self-check found ' + broken.length + ' problem(s).'
+        : 'Self-check passed.',
+      { level: broken.length ? 'error' : 'info' }
+    );
+
+    return steps;
   }
 }
 

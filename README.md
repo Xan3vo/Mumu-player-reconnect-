@@ -77,6 +77,11 @@ Everything you configure — private server links included — is written to
 `%APPDATA%/MuMu Reconnect/config.json` on your own PC. Nothing is bundled into
 the app, uploaded, or shared.
 
+The app makes exactly one outbound request: on launch it asks GitHub whether a
+newer release exists, so it can show an update banner. That request sends
+nothing about you or your setup — no links, no settings, no machine details —
+and the app works normally if it fails or is blocked.
+
 ## Building from source
 
 ```bash
