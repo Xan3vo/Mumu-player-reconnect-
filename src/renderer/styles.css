@@ -484,7 +484,8 @@ button {
 
 .dot.menu,
 .dot.loading,
-.dot.reconnecting {
+.dot.reconnecting,
+.dot.relaunching {
   background: var(--amber);
 }
 
@@ -493,8 +494,10 @@ button {
   background: var(--red);
 }
 
-/* A rejoin in flight - the one state worth animating. */
-.dot.reconnecting {
+/* Something in flight - a rejoin or a MuMu relaunch - is the one state
+   worth animating. */
+.dot.reconnecting,
+.dot.relaunching {
   animation: blink 1.2s ease-in-out infinite;
 }
 
@@ -587,7 +590,8 @@ button {
 
 .state-badge.menu,
 .state-badge.loading,
-.state-badge.reconnecting {
+.state-badge.reconnecting,
+.state-badge.relaunching {
   color: var(--amber);
 }
 

@@ -110,6 +110,7 @@ function renderInstances() {
 
     li.addEventListener('click', () => {
       state.selected = instance.serial;
+      state.selectedKey = instance.key;
       renderInstances();
       renderDetail();
     });
@@ -129,15 +130,18 @@ function renderDetail() {
   }
 
   $('detail-name').textContent = instance.name;
-  $('detail-serial').textContent =
-    instance.serial +
-    (instance.index === null ? '' : ' · instance ' + instance.index);
+  // A placeholder for a down instance has no ADB address to show yet.
+  $('detail-serial').textContent = instance.offline
+    ? 'not running · instance ' + instance.index
+    : instance.serial +
+      (instance.index === null ? '' : ' · instance ' + instance.index);
 
   const badge = $('detail-state');
   badge.textContent = stateText(instance);
   badge.className = 'state-badge ' + stateClass(instance.state);
 
   $('enabled').checked = Boolean(instance.settings.enabled);
+  $('relaunch').checked = Boolean(instance.settings.relaunchMuMu);
 
   setValue($('join-url'), instance.settings.joinUrl || '');
   setValue($('package'), instance.settings.package || '');
@@ -147,7 +151,10 @@ function renderDetail() {
   $('stat-last').textContent = timeAgo(instance.lastReconnect);
 
   $('rejoin-btn').disabled =
-    !state.status.running || !instance.settings.joinUrl || instance.reconnecting;
+    !state.status.running ||
+    !instance.settings.joinUrl ||
+    instance.reconnecting ||
+    Boolean(instance.offline);
 }
 
 /**
@@ -166,7 +173,8 @@ function renderRunState() {
     text = 'MuMuPlayer not found';
     tone = 'bad';
   } else if (status.running) {
-    const count = state.instances.length;
+    // Instances waiting on a relaunch are listed but not running.
+    const count = state.instances.filter((item) => !item.offline).length;
     text = 'Watching · ' + count + (count === 1 ? ' instance' : ' instances');
     tone = 'good';
   } else {
@@ -417,6 +425,10 @@ function wire() {
     }
   });
 
+  $('relaunch').addEventListener('change', (event) => {
+    saveInstance({ relaunchMuMu: event.target.checked }, { immediate: true });
+  });
+
   $('enabled').addEventListener('change', (event) => {
     saveInstance({ enabled: event.target.checked }, { immediate: true });
     renderInstances();
@@ -592,12 +604,16 @@ function wire() {
   window.api.onInstances((list) => {
     state.instances = list;
 
+    // A relaunched instance comes back under a new serial (its placeholder
+    // was "mumu:N"), so follow it by name rather than losing the selection.
     if (state.selected && !currentInstance()) {
-      state.selected = null;
+      const same = list.find((item) => item.key === state.selectedKey);
+      state.selected = same ? same.serial : null;
     }
 
     if (!state.selected && list.length === 1) {
       state.selected = list[0].serial;
+      state.selectedKey = list[0].key;
     }
 
     renderInstances();

@@ -11,6 +11,18 @@ const paths = require('./paths');
 
 const LOG_MAX_BYTES = 2 * 1024 * 1024;
 
+// Auto-relaunch. A freshly launched instance needs time to boot before it
+// shows up as running, so do not launch it again inside that window.
+const RELAUNCH_GRACE = 120 * 1000;
+
+// Running but not answering ADB for this long counts as frozen.
+const FROZEN_AFTER = 180 * 1000;
+
+// If MuMu keeps dying, stop after this many launches in the window rather
+// than hammering it - then try again once the window has passed.
+const RELAUNCH_LIMIT = 5;
+const RELAUNCH_WINDOW = 15 * 60 * 1000;
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -38,6 +50,18 @@ class Watchdog extends EventEmitter {
     this.running = false;
     this.instances = new Map();
     this.logBuffer = [];
+
+    // Instances with auto-relaunch on that are not running, keyed by name.
+    // Kept so they stay visible - and switchable off - while they are down.
+    this.relaunching = new Map();
+
+    // Launch times per instance name, for the RELAUNCH_LIMIT guard. Kept
+    // across successful launches so a crash loop is still caught.
+    this.relaunchHistory = new Map();
+
+    // Every instance MuMuManager knows about, running or not, from the
+    // last discovery pass. Null when MuMuManager could not be asked.
+    this.lastRecords = null;
 
     // Increasing id per entry, so the renderer can tell a line it was
     // sent live apart from the same line arriving again in the history.
@@ -137,6 +161,25 @@ class Watchdog extends EventEmitter {
   // ---------------------------------------------------------------
 
   snapshot() {
+    // Down instances waiting on auto-relaunch, so they stay in the list and
+    // can still be switched off. "mumu:N" is not an ADB serial; offline
+    // tells the UI there is nothing to rejoin yet.
+    const waiting = [...this.relaunching.values()]
+      .filter((entry) => !this.isLive(entry.name))
+      .map((entry) => ({
+        serial: 'mumu:' + entry.index,
+        key: entry.name,
+        index: entry.index,
+        name: entry.name,
+        state: 'RELAUNCHING',
+        detail: entry.detail || 'Not running',
+        lastReconnect: 0,
+        reconnecting: false,
+        reconnects: 0,
+        offline: true,
+        settings: this.store.getInstance(entry.name)
+      }));
+
     return [...this.instances.values()]
       .map((info) => ({
         serial: info.serial,
@@ -150,6 +193,7 @@ class Watchdog extends EventEmitter {
         reconnects: info.reconnects,
         settings: this.store.getInstance(info.key)
       }))
+      .concat(waiting)
       .sort((a, b) => {
         const left = a.index === null ? 99 : a.index;
         const right = b.index === null ? 99 : b.index;
@@ -242,6 +286,9 @@ class Watchdog extends EventEmitter {
 
     this.running = false;
 
+    // Nothing relaunches once watching stops, so drop the placeholders.
+    this.relaunching.clear();
+
     for (const info of this.instances.values()) {
       info.state = 'STOPPED';
       info.detail = 'Not watching';
@@ -262,6 +309,8 @@ class Watchdog extends EventEmitter {
     let records = await mumu.queryManager(this.managerPath);
 
     const fromManager = records !== null;
+
+    this.lastRecords = fromManager ? records : null;
 
     if (!fromManager) {
       this.log('MuMuManager unavailable - falling back to port probing.', {
@@ -337,6 +386,8 @@ class Watchdog extends EventEmitter {
           }
         }
 
+        await this.relaunchStopped();
+
         const summary = [...bySerial.keys()]
           .map((serial) => this.labelFor(serial))
           .sort()
@@ -394,6 +445,179 @@ class Watchdog extends EventEmitter {
   }
 
   // ---------------------------------------------------------------
+  //  Auto-relaunch
+  // ---------------------------------------------------------------
+
+  /** True when an instance with this MuMu name is registered and live. */
+  isLive(name) {
+    for (const info of this.instances.values()) {
+      if (info.key === name) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Launch every instance that has auto-relaunch on but is not running.
+   *
+   * Deliberately makes no distinction between a crash and the user
+   * closing it: with the toggle on, it comes back either way, until the
+   * toggle goes off or watching stops.
+   */
+  async relaunchStopped() {
+    const records = this.lastRecords;
+
+    // Port probing only ever finds running instances, so without
+    // MuMuManager there is no way to know one is down, or to start it.
+    if (!records) {
+      return;
+    }
+
+    const now = Date.now();
+    const keep = new Set();
+
+    for (const record of records) {
+      const name = record.name;
+      const settings = this.store.getInstance(name);
+
+      if (!settings.relaunchMuMu || record.index === null) {
+        continue;
+      }
+
+      const label = record.index + ':' + name;
+      const entry = this.relaunching.get(name);
+
+      if (record.started) {
+        // Booting after a launch: still not reachable, so keep showing it
+        // until discovery picks it up as live.
+        if (entry && !this.isLive(name)) {
+          entry.detail = 'Starting MuMu...';
+          keep.add(name);
+        }
+
+        continue;
+      }
+
+      keep.add(name);
+
+      let current = entry;
+
+      if (!current) {
+        current = { name, index: record.index, lastLaunch: 0, paused: false, detail: '' };
+        this.relaunching.set(name, current);
+        this.log('MuMu instance is not running.', { label, level: 'warn' });
+      }
+
+      current.index = record.index;
+
+      // 0 means never launched, not "launched at the epoch".
+      if (current.lastLaunch && now - current.lastLaunch < RELAUNCH_GRACE) {
+        continue;
+      }
+
+      const history = (this.relaunchHistory.get(name) || []).filter(
+        (time) => now - time < RELAUNCH_WINDOW
+      );
+
+      this.relaunchHistory.set(name, history);
+
+      if (history.length >= RELAUNCH_LIMIT) {
+        if (!current.paused) {
+          current.paused = true;
+          this.log(
+            'Launched ' + RELAUNCH_LIMIT + ' times in ' +
+              RELAUNCH_WINDOW / 60000 + ' minutes and it keeps stopping. ' +
+              'Pausing relaunches for this instance for a while.',
+            { label, level: 'error' }
+          );
+        }
+
+        current.detail = 'Paused - kept stopping';
+        continue;
+      }
+
+      current.paused = false;
+      current.lastLaunch = now;
+      current.detail = 'Launching MuMu...';
+      history.push(now);
+
+      this.log('Launching MuMu (auto-relaunch).', { label });
+      this.emitInstances();
+
+      const result = await mumu.controlInstance(
+        this.managerPath,
+        record.index,
+        'launch'
+      );
+
+      if (!result.ok) {
+        current.detail = 'Launch failed';
+        this.log('MuMuManager could not launch it: ' + result.message, {
+          label,
+          level: 'error'
+        });
+      }
+    }
+
+    // Running again, toggled off, or deleted from MuMu.
+    for (const name of [...this.relaunching.keys()]) {
+      if (!keep.has(name)) {
+        this.relaunching.delete(name);
+      }
+    }
+  }
+
+  /**
+   * Restart an instance that is running but has stopped answering.
+   *
+   * Counts toward the same RELAUNCH_LIMIT, so an instance that freezes
+   * over and over is not restarted forever.
+   */
+  async restartFrozen(serial, info, label) {
+    const now = Date.now();
+    const history = (this.relaunchHistory.get(info.key) || []).filter(
+      (time) => now - time < RELAUNCH_WINDOW
+    );
+
+    this.relaunchHistory.set(info.key, history);
+
+    if (history.length >= RELAUNCH_LIMIT) {
+      return;
+    }
+
+    history.push(now);
+    info.lastRestart = now;
+
+    // It drops off ADB while it reboots; keep it listed meanwhile, and
+    // stop the stopped-instance pass launching it a second time.
+    this.relaunching.set(info.key, {
+      name: info.key,
+      index: info.index,
+      lastLaunch: now,
+      paused: false,
+      detail: 'Restarting MuMu...'
+    });
+
+    this.log(
+      'Not responding for ' + FROZEN_AFTER / 60000 + ' minutes. Restarting MuMu.',
+      { label, level: 'warn' }
+    );
+
+    this.setState(serial, 'RELAUNCHING', 'Restarting MuMu...');
+
+    const result = await mumu.controlInstance(this.managerPath, info.index, 'restart');
+
+    if (!result.ok) {
+      this.log('MuMuManager could not restart it: ' + result.message, {
+        label,
+        level: 'error'
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------
   //  Monitoring
   // ---------------------------------------------------------------
 
@@ -442,11 +666,35 @@ class Watchdog extends EventEmitter {
     }
 
     if (state === 'UNKNOWN') {
-      // Busy or still booting. Stay quiet and retry rather than
-      // restarting a healthy game.
+      if (!info.unknownSince) {
+        info.unknownSince = Date.now();
+      }
+
+      const silentFor = Date.now() - info.unknownSince;
+
+      // Busy or still booting: stay quiet and retry rather than restart a
+      // healthy game - unless it has been silent long enough to be frozen.
+      if (
+        settings.relaunchMuMu &&
+        info.index !== null &&
+        silentFor >= FROZEN_AFTER &&
+        Date.now() - (info.lastRestart || 0) >= FROZEN_AFTER
+      ) {
+        await this.restartFrozen(serial, info, this.labelFor(serial));
+        return;
+      }
+
+      // Silent because we restarted it - say that, not "not responding".
+      if (Date.now() - (info.lastRestart || 0) < RELAUNCH_GRACE) {
+        this.setState(serial, 'RELAUNCHING', 'Restarting MuMu...');
+        return;
+      }
+
       this.setState(serial, 'UNKNOWN', 'Emulator not responding');
       return;
     }
+
+    info.unknownSince = 0;
 
     const previous = info.lastState;
 
