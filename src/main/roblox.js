@@ -17,6 +17,19 @@ const PACKAGE = 'com.roblox.client';
 // and must not be mistaken for a live game.
 const MIN_GAME_REMOTE_PORT = 1024;
 
+// A connected game socket is not enough on its own: after a kick ("You
+// have been kicked... Error Code 267") Roblox keeps the socket open behind
+// its dialog. What stops is the traffic. Measured on a live instance:
+// roughly 100 inbound UDP packets a second in a game, exactly 0 with the
+// kick dialog up. Anything under this rate over a check interval counts
+// as disconnected.
+const MIN_GAME_PACKET_RATE = 5;
+
+// Packet counts are compared between consecutive checks. An older
+// reading than this would average across whatever happened in between,
+// so it is replaced instead of used.
+const MAX_SAMPLE_AGE = 30000;
+
 // How long to wait for Roblox to actually die after force-stop before
 // giving up and launching anyway.
 const STOP_TIMEOUT = 15000;
@@ -43,6 +56,9 @@ class RobloxProbe {
     this.adb = adb;
     this.uidCache = new Map();
 
+    // Last UDP packet-count reading per device, for the traffic rate.
+    this.traffic = new Map();
+
     // Devices where the in-game check could not run at all. Tracked so
     // the app can say so out loud instead of quietly calling every
     // session healthy - see the null branch in getState.
@@ -62,6 +78,93 @@ class RobloxProbe {
     }
 
     this.degraded.delete(device);
+    this.traffic.delete(device);
+  }
+
+  /**
+   * Total UDP packets this instance has received, IPv4 and IPv6.
+   *
+   * These counters are kernel-wide, but every MuMu instance is its own VM
+   * with its own kernel, and Roblox is the only app moving real UDP
+   * traffic on it, so this tracks the game connection closely. Readable
+   * by the shell user without root. Null when unavailable.
+   */
+  async readUdpIn(device) {
+    const { stdout } = await this.adb.run(
+      ['shell', 'cat', '/proc/net/snmp', '/proc/net/snmp6'],
+      { device, timeout: 10000 }
+    );
+
+    // As with /proc/net/udp, judge by output: cat exits non-zero if one
+    // of the two files is missing but still prints the other.
+    if (!stdout) {
+      return null;
+    }
+
+    const lines = stdout.split(/\r?\n/).map((line) => line.trim());
+    let total = 0;
+    let found = false;
+
+    // /proc/net/snmp: a "Udp:" header line, then a "Udp:" values line.
+    const udp = lines.filter((line) => line.startsWith('Udp:'));
+
+    if (udp.length >= 2) {
+      const names = udp[0].split(/\s+/);
+      const values = udp[1].split(/\s+/);
+      const column = names.indexOf('InDatagrams');
+      const value = Number(values[column]);
+
+      if (column > 0 && Number.isFinite(value)) {
+        total += value;
+        found = true;
+      }
+    }
+
+    // /proc/net/snmp6: "Udp6InDatagrams   1234".
+    for (const line of lines) {
+      const match = /^Udp6InDatagrams\s+(\d+)/.exec(line);
+
+      if (match) {
+        total += Number(match[1]);
+        found = true;
+      }
+    }
+
+    return found ? total : null;
+  }
+
+  /**
+   * Inbound UDP packets per second since the previous reading.
+   *
+   * Null when there is nothing fair to compare against yet - no earlier
+   * reading, one too old to mean anything, or a counter that went
+   * backwards because the instance rebooted.
+   */
+  async packetRate(device) {
+    const count = await this.readUdpIn(device);
+
+    if (count === null) {
+      return null;
+    }
+
+    const now = Date.now();
+    const previous = this.traffic.get(device);
+
+    // Too soon for a meaningful rate: keep the older baseline and reuse
+    // the last answer rather than measuring over a sliver of time.
+    if (previous && now - previous.at < 1000) {
+      return previous.rate;
+    }
+
+    let rate = null;
+
+    if (previous && now - previous.at <= MAX_SAMPLE_AGE && count >= previous.count) {
+      rate = (count - previous.count) / ((now - previous.at) / 1000);
+    }
+
+    this.traffic.set(device, { at: now, count, rate });
+
+    return rate;
   }
 
   /** True when the in-game check is unavailable on this device. */
@@ -225,7 +328,21 @@ class RobloxProbe {
         return 'GAME';
       }
 
-      return inGame ? 'GAME' : 'MENU';
+      if (!inGame) {
+        return 'MENU';
+      }
+
+      // The socket is there; is the server still talking? A kicked or
+      // dropped client keeps the socket but goes silent. With no fair
+      // comparison yet, give it the benefit of the doubt until the next
+      // check can measure.
+      const rate = await this.packetRate(device);
+
+      if (rate !== null && rate < MIN_GAME_PACKET_RATE) {
+        return 'DISCONNECTED';
+      }
+
+      return 'GAME';
     }
 
     // Some other Roblox screen (login, settings).
@@ -312,5 +429,6 @@ module.exports = {
   GAME_ACTIVITY,
   LAUNCH_COMPONENT,
   LOADING_ACTIVITIES,
-  MIN_GAME_REMOTE_PORT
+  MIN_GAME_REMOTE_PORT,
+  MIN_GAME_PACKET_RATE
 };

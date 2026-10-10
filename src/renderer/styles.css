@@ -484,6 +484,7 @@ button {
 
 .dot.menu,
 .dot.loading,
+.dot.disconnected,
 .dot.reconnecting,
 .dot.relaunching {
   background: var(--amber);
@@ -590,6 +591,7 @@ button {
 
 .state-badge.menu,
 .state-badge.loading,
+.state-badge.disconnected,
 .state-badge.reconnecting,
 .state-badge.relaunching {
   color: var(--amber);
@@ -1038,12 +1040,77 @@ input[type="checkbox"]:checked::after {
   flex: none;
 }
 
+/* Number field with its own steppers; the native spin buttons are drawn
+   white by Windows regardless of theme, so they are hidden. */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.num-field {
+  position: relative;
+  display: inline-flex;
+}
+
 .num input {
-  width: 58px;
+  width: 66px;
   height: 26px;
-  padding: 0 6px;
+  padding: 0 24px 0 6px;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.stepper {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  display: flex;
+  flex-direction: column;
+  width: 17px;
+  overflow: hidden;
+  border-left: 1px solid var(--border);
+  border-radius: 0 3px 3px 0;
+}
+
+.step {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+}
+
+.step + .step {
+  border-top: 1px solid var(--border);
+}
+
+.step:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.step:active {
+  background: var(--active);
+}
+
+.step svg {
+  width: 8px;
+  height: 5px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Stepper lines up with the field's own focus colour. */
+.num-field:focus-within .stepper {
+  border-left-color: rgba(77, 138, 240, 0.45);
 }
 
 .unit {
