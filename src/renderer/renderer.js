@@ -9,6 +9,14 @@ const state = {
   general: {}
 };
 
+// Activity pane: hide routine chatter so a problem is not buried.
+let problemsOnly = false;
+
+// See the onLog subscription in wire().
+let logReady = false;
+let pendingLogs = [];
+let applyAllTimer = null;
+
 // ------------------------------------------------------------------
 //  Helpers
 // ------------------------------------------------------------------
@@ -75,6 +83,11 @@ function renderInstances() {
       li.classList.add('active');
     }
 
+    // Not being watched - still listed, but it should not read as live.
+    if (!instance.settings.enabled) {
+      li.classList.add('off');
+    }
+
     const dot = document.createElement('span');
     dot.className = 'dot ' + stateClass(instance.state);
     li.appendChild(dot);
@@ -90,7 +103,7 @@ function renderInstances() {
     const sub = document.createElement('span');
     sub.className = 'sub';
     sub.textContent =
-      (instance.settings.enabled ? '' : 'off - ') + stateText(instance);
+      (instance.settings.enabled ? '' : 'Off · ') + stateText(instance);
     meta.appendChild(sub);
 
     li.appendChild(meta);
@@ -118,7 +131,7 @@ function renderDetail() {
   $('detail-name').textContent = instance.name;
   $('detail-serial').textContent =
     instance.serial +
-    (instance.index === null ? '' : '  -  instance ' + instance.index);
+    (instance.index === null ? '' : ' · instance ' + instance.index);
 
   const badge = $('detail-state');
   badge.textContent = stateText(instance);
@@ -137,6 +150,35 @@ function renderDetail() {
     !state.status.running || !instance.settings.joinUrl || instance.reconnecting;
 }
 
+/**
+ * The title bar's status word. The install path is useful once and
+ * noise every other time, so it lives in the tooltip.
+ */
+function renderRunState() {
+  const status = state.status;
+  const env = $('env-line');
+  const dot = $('run-dot');
+
+  let text;
+  let tone;
+
+  if (!status.adbFound) {
+    text = 'MuMuPlayer not found';
+    tone = 'bad';
+  } else if (status.running) {
+    const count = state.instances.length;
+    text = 'Watching · ' + count + (count === 1 ? ' instance' : ' instances');
+    tone = 'good';
+  } else {
+    text = 'Stopped';
+    tone = 'idle';
+  }
+
+  env.textContent = text;
+  env.title = status.mumuRoot || 'Set the MuMuPlayer folder in Settings';
+  dot.setAttribute('class', 'run-dot ' + tone);
+}
+
 function renderStatus() {
   const status = state.status;
 
@@ -144,19 +186,10 @@ function renderStatus() {
   power.textContent = status.running ? 'Stop watching' : 'Start watching';
   power.classList.toggle('on', Boolean(status.running));
 
-  const env = $('env-line');
+  renderRunState();
 
-  if (!status.adbFound) {
-    env.textContent = 'MuMuPlayer not found - set the folder in Settings.';
-    env.style.color = 'var(--bad)';
-  } else {
-    env.textContent = status.running
-      ? 'Watching - ' + status.mumuRoot
-      : 'Ready - ' + status.mumuRoot;
-    env.style.color = '';
-  }
-
-  $('mumu-root').value = status.mumuRoot || '';
+  $('mumu-root').textContent = status.mumuRoot || 'Not set';
+  $('mumu-root').title = status.mumuRoot || '';
 
   const version = status.mumuVersion ? ' ' + status.mumuVersion : '';
 
@@ -178,25 +211,79 @@ function setMaximized(maximized) {
   button.setAttribute('aria-label', button.title);
 }
 
+function isProblem(li) {
+  return li.dataset.level === 'warn' || li.dataset.level === 'error';
+}
+
+function setLogFilter(onlyProblems) {
+  problemsOnly = onlyProblems;
+
+  $('filter-all').classList.toggle('active', !onlyProblems);
+  $('filter-problems').classList.toggle('active', onlyProblems);
+  $('filter-all').setAttribute('aria-pressed', String(!onlyProblems));
+  $('filter-problems').setAttribute('aria-pressed', String(onlyProblems));
+
+  // Re-apply to rows already on screen, not just new ones.
+  for (const li of $('log').children) {
+    li.classList.toggle('filtered', onlyProblems && !isProblem(li));
+  }
+}
+
+function setLogCollapsed(collapsed) {
+  $('logpane').classList.toggle('collapsed', collapsed);
+  $('log-toggle').setAttribute('aria-expanded', String(!collapsed));
+  writePref('logCollapsed', collapsed ? '1' : '0');
+}
+
+// Per-window conveniences only. Storage can be unavailable, so every
+// access is guarded and the UI works the same without it.
+function readPref(key) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch (err) {
+    return null;
+  }
+}
+
+function writePref(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch (err) {
+    /* not remembered, which is fine */
+  }
+}
+
 function appendLog(entry) {
   const log = $('log');
   const li = document.createElement('li');
+  const level = entry.level || 'info';
 
-  li.className = entry.level || 'info';
+  li.className = level;
+  li.dataset.level = level;
 
+  // Three aligned columns - when, which instance, what happened - read
+  // far more easily than one run-on line per event.
   const time = document.createElement('span');
   time.className = 'time';
-  time.textContent = entry.time.slice(11, 19) + ' ';
+  time.textContent = entry.time.slice(11, 19);
+  time.title = new Date(entry.time).toLocaleString();
   li.appendChild(time);
 
-  if (entry.label) {
-    const label = document.createElement('span');
-    label.className = 'label';
-    label.textContent = '[' + entry.label + '] ';
-    li.appendChild(label);
-  }
+  // Labels arrive as "6:fuzzalt". The index is noise here; the name is
+  // what anyone recognises.
+  const who = document.createElement('span');
+  who.className = 'who';
+  who.textContent = entry.label ? String(entry.label).replace(/^\d+:/, '') : '';
+  li.appendChild(who);
 
-  li.appendChild(document.createTextNode(entry.message));
+  const message = document.createElement('span');
+  message.className = 'msg';
+  message.textContent = entry.message;
+  li.appendChild(message);
+
+  if (problemsOnly && !isProblem(li)) {
+    li.classList.add('filtered');
+  }
 
   const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
 
@@ -215,7 +302,23 @@ function appendLog(entry) {
 //  Saving
 // ------------------------------------------------------------------
 
+// Saves are debounced, so edits made close together are merged rather
+// than replaced. With a single "latest patch" two quick edits lost the
+// first one - including an edit on one instance followed by an edit on
+// another, which dropped the first instance's change entirely.
+
 let saveTimer = null;
+const pendingInstances = new Map();
+
+function flushInstances() {
+  clearTimeout(saveTimer);
+
+  for (const [key, patch] of pendingInstances) {
+    window.api.saveInstance(key, patch);
+  }
+
+  pendingInstances.clear();
+}
 
 function saveInstance(patch, { immediate = false } = {}) {
   const instance = currentInstance();
@@ -224,36 +327,52 @@ function saveInstance(patch, { immediate = false } = {}) {
     return;
   }
 
-  const key = instance.key;
-
   Object.assign(instance.settings, patch);
+
+  pendingInstances.set(instance.key, {
+    ...(pendingInstances.get(instance.key) || {}),
+    ...patch
+  });
 
   clearTimeout(saveTimer);
 
-  const commit = () => window.api.saveInstance(key, patch);
-
   if (immediate) {
-    commit();
+    flushInstances();
   } else {
-    saveTimer = setTimeout(commit, 400);
+    saveTimer = setTimeout(flushInstances, 400);
   }
 }
 
 let generalTimer = null;
+let pendingGeneral = {};
+
+function flushGeneral() {
+  clearTimeout(generalTimer);
+
+  if (Object.keys(pendingGeneral).length) {
+    window.api.saveGeneral(pendingGeneral);
+    pendingGeneral = {};
+  }
+}
 
 function saveGeneral(patch, { immediate = false } = {}) {
   Object.assign(state.general, patch);
+  Object.assign(pendingGeneral, patch);
 
   clearTimeout(generalTimer);
 
-  const commit = () => window.api.saveGeneral(patch);
-
   if (immediate) {
-    commit();
+    flushGeneral();
   } else {
-    generalTimer = setTimeout(commit, 400);
+    generalTimer = setTimeout(flushGeneral, 400);
   }
 }
+
+// Closing within the debounce window would otherwise drop the last edit.
+window.addEventListener('beforeunload', () => {
+  flushInstances();
+  flushGeneral();
+});
 
 // ------------------------------------------------------------------
 //  Wiring
@@ -313,6 +432,50 @@ function wire() {
 
   $('launch-component').addEventListener('input', (event) => {
     saveInstance({ launchComponent: event.target.value.trim() });
+  });
+
+  $('rejoin-all').addEventListener('click', async (event) => {
+    const button = event.target;
+
+    button.disabled = true;
+
+    try {
+      await window.api.reconnectAll();
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  $('apply-all').addEventListener('click', async () => {
+    const url = $('join-url').value.trim();
+
+    if (!url) {
+      return;
+    }
+
+    const count = await window.api.applyUrlToAll(url);
+    const done = $('apply-all-done');
+
+    done.textContent = 'Applied to ' + count + ' instance(s)';
+    done.classList.remove('hidden');
+
+    clearTimeout(applyAllTimer);
+    applyAllTimer = setTimeout(() => done.classList.add('hidden'), 2500);
+  });
+
+  $('filter-all').addEventListener('click', () => setLogFilter(false));
+  $('filter-problems').addEventListener('click', () => setLogFilter(true));
+
+  $('log-toggle').addEventListener('click', () => {
+    setLogCollapsed(!$('logpane').classList.contains('collapsed'));
+  });
+
+  setLogCollapsed(readPref('logCollapsed') === '1');
+
+  $('reset-timing').addEventListener('click', async () => {
+    flushGeneral();
+    state.general = await window.api.resetTiming();
+    fillGeneral();
   });
 
   // Update banner. Only ever shown when a newer release really exists.
@@ -414,7 +577,17 @@ function wire() {
     $('log').textContent = '';
   });
 
-  window.api.onLog(appendLog);
+  // Lines can be emitted after this subscribes but before bootstrap
+  // answers, and those arrive twice: live, and again in the history.
+  // Hold live lines until the history is on screen, then keep only the
+  // ones newer than it.
+  window.api.onLog((entry) => {
+    if (logReady) {
+      appendLog(entry);
+    } else {
+      pendingLogs.push(entry);
+    }
+  });
 
   window.api.onInstances((list) => {
     state.instances = list;
@@ -429,6 +602,7 @@ function wire() {
 
     renderInstances();
     renderDetail();
+    renderRunState();
   });
 
   window.api.onStatus((status) => {
@@ -449,6 +623,17 @@ async function boot() {
   for (const entry of data.logs) {
     appendLog(entry);
   }
+
+  const lastId = data.logs.length ? data.logs[data.logs.length - 1].id : 0;
+
+  for (const entry of pendingLogs) {
+    if (entry.id > lastId) {
+      appendLog(entry);
+    }
+  }
+
+  pendingLogs = [];
+  logReady = true;
 
   fillGeneral();
   renderStatus();

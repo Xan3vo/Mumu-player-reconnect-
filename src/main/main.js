@@ -12,7 +12,7 @@ const {
   nativeImage
 } = require('electron');
 
-const { Store } = require('./store');
+const { Store, DEFAULT_GENERAL } = require('./store');
 const { Watchdog } = require('./watchdog');
 const paths = require('./paths');
 const { checkForUpdate } = require('./update');
@@ -24,6 +24,10 @@ let watchdog = null;
 let quitting = false;
 
 const ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.png');
+
+// Drawn for 16px rather than shrunk from the window icon; Electron picks
+// tray@2x.png on its own on a high-DPI display.
+const TRAY_PATH = path.join(__dirname, '..', 'assets', 'tray.png');
 
 // A single instance only: two copies would fight over the same
 // emulators, force-stopping Roblox while the other is mid-launch.
@@ -95,9 +99,7 @@ function showWindow() {
 }
 
 function createTray() {
-  const icon = nativeImage
-    .createFromPath(ICON_PATH)
-    .resize({ width: 16, height: 16 });
+  const icon = nativeImage.createFromPath(TRAY_PATH);
 
   try {
     tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
@@ -148,6 +150,24 @@ function registerIpc() {
     return saved;
   });
 
+  // Every instance usually wants the same link, and typing it into each
+  // one by hand is the most tedious part of setting this up.
+  ipcMain.handle('instance:applyUrlToAll', (event, url) => {
+    const all = store.all().instances;
+    let count = 0;
+
+    for (const key of Object.keys(all)) {
+      store.setInstance(key, { joinUrl: url });
+      count += 1;
+    }
+
+    watchdog.emitInstances();
+
+    return count;
+  });
+
+  ipcMain.handle('instance:reconnectAll', () => watchdog.reconnectAll());
+
   ipcMain.handle('instance:reconnect', (event, serial) =>
     watchdog.reconnectNow(serial)
   );
@@ -156,6 +176,24 @@ function registerIpc() {
     const saved = store.setGeneral(patch);
     watchdog.emitInstances();
     return saved;
+  });
+
+  // Puts back only the timing values, not the user's on/off choices.
+  ipcMain.handle('settings:resetTiming', () => {
+    const defaults = {};
+
+    for (const key of [
+      'checkInterval',
+      'discoveryInterval',
+      'loadingGrace',
+      'reconnectCooldown',
+      'startTimeout',
+      'maxAttempts'
+    ]) {
+      defaults[key] = DEFAULT_GENERAL[key];
+    }
+
+    return store.setGeneral(defaults);
   });
 
   ipcMain.handle('settings:mumuRoot', (event, root) => {

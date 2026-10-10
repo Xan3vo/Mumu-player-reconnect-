@@ -10,18 +10,26 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark">MR</span>
-        <div>
-          <h1>MuMu Reconnect</h1>
-          <p id="env-line" class="muted">Looking for MuMuPlayer...</p>
-        </div>
+    <!-- The window is frameless: this bar is the title bar. -->
+    <header class="titlebar">
+      <div class="app-id">
+        <!-- The app icon. Its dot is the live run indicator. -->
+        <svg class="app-logo" viewBox="0 0 256 256" aria-hidden="true">
+          <rect class="logo-tile" x="8" y="8" width="240" height="240" rx="56" />
+          <g class="logo-loop">
+            <path d="M 189.76 133.40 A 62 62 0 1 1 138.77 66.94" />
+            <polyline points="122.45,90.46 152.56,69.37 131.47,39.26" />
+          </g>
+          <circle id="run-dot" class="run-dot idle" cx="183" cy="98" r="19" />
+        </svg>
+        <span class="app-name">MuMu Reconnect</span>
       </div>
 
-      <div class="topbar-actions">
-        <button id="settings-btn" class="ghost">Settings</button>
-        <button id="power-btn" class="primary">Start watching</button>
+      <span id="env-line" class="run-state">Looking for MuMuPlayer...</span>
+
+      <div class="titlebar-actions">
+        <button id="settings-btn" class="btn quiet">Settings</button>
+        <button id="power-btn" class="btn primary">Start watching</button>
       </div>
 
       <div class="window-controls">
@@ -50,199 +58,275 @@
     </header>
 
     <div id="update-banner" class="update-banner hidden">
-      <span class="update-dot"></span>
       <span id="update-text">An update is available.</span>
-      <button id="update-link" class="ghost small">Download</button>
-      <button id="update-dismiss" class="ghost small">Later</button>
+      <button id="update-link" class="btn small">Download</button>
+      <button id="update-dismiss" class="btn small quiet">Later</button>
     </div>
 
     <main class="layout">
-      <section class="sidebar">
-        <div class="sidebar-head">
-          <h2>Instances</h2>
-          <span id="instance-count" class="pill">0</span>
+      <aside class="sidebar">
+        <div class="pane-head">
+          <span class="pane-title">
+            Instances <span id="instance-count" class="count">0</span>
+          </span>
+          <button
+            id="rejoin-all"
+            class="btn small quiet"
+            title="Rejoin every enabled instance that is not in a game"
+          >
+            Rejoin all
+          </button>
         </div>
 
         <ul id="instance-list" class="instance-list"></ul>
 
         <p id="instance-empty" class="empty">
-          No running MuMu instances yet. Start one and it shows up here.
+          No running instances. Start one in MuMuPlayer and it shows up here.
         </p>
-      </section>
+      </aside>
 
       <section id="detail" class="detail">
         <div id="detail-empty" class="placeholder">
-          <h2>Pick an instance</h2>
-          <p>
-            Select an instance on the left to set the game or private server
-            link it should rejoin.
-          </p>
+          <p class="placeholder-title">No instance selected</p>
+          <p>Pick one on the left to set the link it should rejoin.</p>
         </div>
 
         <div id="detail-body" class="hidden">
           <div class="detail-head">
-            <div>
+            <div class="detail-title">
               <h2 id="detail-name">-</h2>
-              <p id="detail-serial" class="muted mono">-</p>
+              <span id="detail-serial" class="mono">-</span>
             </div>
 
-            <div class="detail-head-right">
+            <div class="detail-actions">
               <span id="detail-state" class="state-badge">-</span>
-              <button id="rejoin-btn" class="ghost">Rejoin now</button>
+              <button id="rejoin-btn" class="btn">Rejoin now</button>
             </div>
           </div>
 
-          <div class="card">
-            <label class="switch-row">
-              <input id="enabled" type="checkbox" />
-              <span>
-                <strong>Auto-reconnect this instance</strong>
-                <small
-                  >Watch it and rejoin the link below whenever it drops out of
-                  the game.</small
-                >
-              </span>
-            </label>
-          </div>
+          <p class="detail-stats">
+            <span id="stat-reconnects">0</span> reconnects this session
+            <span class="sep">&middot;</span>
+            last reconnect <span id="stat-last">never</span>
+          </p>
 
-          <div class="card">
-            <label class="field">
-              <span class="field-label">Game or private server link</span>
+          <div class="rows">
+            <label class="row">
+              <span class="row-label">
+                <span class="row-title">Auto-reconnect</span>
+                <span class="row-desc">
+                  Rejoin the link below whenever this instance leaves the game.
+                </span>
+              </span>
+              <input id="enabled" type="checkbox" />
+            </label>
+
+            <div class="row stacked">
+              <label class="row-label" for="join-url">
+                <span class="row-title">Join link</span>
+                <span class="row-desc">
+                  A game or private server link. Stored on this PC only.
+                </span>
+              </label>
+
               <input
                 id="join-url"
                 type="text"
                 spellcheck="false"
                 placeholder="https://www.roblox.com/games/..."
               />
-              <small class="hint">
-                Paste the Roblox link this account should join. A private
-                server link works too - it is stored on this PC only.
-              </small>
-            </label>
-          </div>
 
-          <details class="card advanced">
-            <summary>Advanced</summary>
-
-            <label class="field">
-              <span class="field-label">App package</span>
-              <input id="package" type="text" spellcheck="false" />
-              <small class="hint">
-                Leave this alone unless you use a different Roblox build.
-              </small>
-            </label>
-
-            <label class="field">
-              <span class="field-label">Launch component</span>
-              <input id="launch-component" type="text" spellcheck="false" />
-              <small class="hint">
-                Aims the link straight at Roblox so the emulator browser
-                cannot swallow it. Clear it to let Android choose.
-              </small>
-            </label>
-          </details>
-
-          <div class="stats">
-            <div>
-              <span class="stat-value" id="stat-reconnects">0</span>
-              <span class="stat-label">reconnects this session</span>
+              <div class="inline-actions">
+                <button id="apply-all" class="btn small quiet">
+                  Use for every instance
+                </button>
+                <span id="apply-all-done" class="done hidden">Applied</span>
+              </div>
             </div>
-            <div>
-              <span class="stat-value" id="stat-last">never</span>
-              <span class="stat-label">last reconnect</span>
-            </div>
+
+            <details class="row advanced">
+              <summary>Advanced</summary>
+
+              <div class="advanced-body">
+                <label class="field">
+                  <span class="field-label">App package</span>
+                  <input id="package" type="text" spellcheck="false" />
+                  <span class="row-desc">
+                    Leave this alone unless you use a different Roblox build.
+                  </span>
+                </label>
+
+                <label class="field">
+                  <span class="field-label">Launch component</span>
+                  <input id="launch-component" type="text" spellcheck="false" />
+                  <span class="row-desc">
+                    Points the link straight at Roblox so the emulator browser
+                    cannot catch it. Clear it to let Android choose.
+                  </span>
+                </label>
+              </div>
+            </details>
           </div>
         </div>
       </section>
     </main>
 
-    <section class="logpane">
-      <div class="logpane-head">
-        <h2>Activity</h2>
-        <div>
-          <button id="open-logs" class="ghost small">Open log folder</button>
-          <button id="clear-log" class="ghost small">Clear</button>
+    <section id="logpane" class="logpane">
+      <div class="pane-head">
+        <button
+          id="log-toggle"
+          class="pane-toggle"
+          aria-expanded="true"
+          aria-controls="log"
+          title="Show or hide activity"
+        >
+          <span class="chevron"></span>
+          Activity
+        </button>
+
+        <div class="pane-actions">
+          <div class="segmented" role="group" aria-label="Filter activity">
+            <button id="filter-all" class="seg active" aria-pressed="true">All</button>
+            <button id="filter-problems" class="seg" aria-pressed="false">Problems</button>
+          </div>
+          <button id="clear-log" class="btn small quiet">Clear</button>
         </div>
       </div>
       <ol id="log" class="log"></ol>
     </section>
 
     <div id="settings-modal" class="modal hidden">
-      <div class="modal-card">
+      <div class="modal-card" role="dialog" aria-labelledby="settings-title">
         <div class="modal-head">
-          <h2>Settings</h2>
-          <button id="settings-close" class="ghost small">Close</button>
+          <h2 id="settings-title">Settings</h2>
+          <button id="settings-close" class="icon-btn" title="Close" aria-label="Close">
+            <svg viewBox="0 0 10 10" aria-hidden="true">
+              <path d="M0.5 0.5l9 9M9.5 0.5l-9 9" />
+            </svg>
+          </button>
         </div>
 
-        <label class="field">
-          <span class="field-label">MuMuPlayer folder</span>
-          <div class="row">
-            <input id="mumu-root" type="text" spellcheck="false" readonly />
-            <button id="browse-root" class="ghost">Browse</button>
-          </div>
-          <small id="root-hint" class="hint"></small>
-        </label>
+        <div class="modal-body">
+          <section class="group">
+            <h3>General</h3>
 
-        <div class="selfcheck">
-          <div>
-            <strong>Not sure it works on this PC?</strong>
-            <small>
-              Walks the whole detection chain on this machine and reports
-              which step fails. The result appears in Activity.
-            </small>
-          </div>
-          <button id="selfcheck-btn" class="ghost">Run self-check</button>
+            <label class="row">
+              <span class="row-label">
+                <span class="row-title">Start watching when the app opens</span>
+              </span>
+              <input id="autoStart" type="checkbox" />
+            </label>
+
+            <label class="row">
+              <span class="row-label">
+                <span class="row-title">Keep running in the tray</span>
+                <span class="row-desc">
+                  Closing the window hides it instead of stopping.
+                </span>
+              </span>
+              <input id="minimizeToTray" type="checkbox" />
+            </label>
+          </section>
+
+          <section class="group">
+            <h3>MuMuPlayer</h3>
+
+            <div class="row">
+              <span class="row-label">
+                <span id="mumu-root" class="row-title path">-</span>
+                <span id="root-hint" class="row-desc"></span>
+              </span>
+              <button id="browse-root" class="btn">Change</button>
+            </div>
+          </section>
+
+          <section class="group">
+            <h3>Troubleshooting</h3>
+
+            <div class="row">
+              <span class="row-label">
+                <span class="row-title">Self-check</span>
+                <span class="row-desc">
+                  Tests each step on this PC. Results show in Activity.
+                </span>
+              </span>
+              <button id="selfcheck-btn" class="btn">Run</button>
+            </div>
+
+            <div class="row">
+              <span class="row-label">
+                <span class="row-title">Log folder</span>
+                <span class="row-desc">
+                  Full history, plus screenshots of rejoins that failed.
+                </span>
+              </span>
+              <button id="open-logs" class="btn">Open</button>
+            </div>
+          </section>
+
+          <details class="group timing-group">
+            <summary>Timing</summary>
+
+            <p class="row-desc timing-note">
+              The defaults suit most setups. Change these only if rejoins
+              fire too early or too late.
+            </p>
+
+            <div class="timing">
+              <label class="timing-row">
+                <span>Check each instance every</span>
+                <span class="num">
+                  <input id="checkInterval" type="number" min="2" max="120" />
+                  <span class="unit">s</span>
+                </span>
+              </label>
+
+              <label class="timing-row">
+                <span>Look for new instances every</span>
+                <span class="num">
+                  <input id="discoveryInterval" type="number" min="2" max="300" />
+                  <span class="unit">s</span>
+                </span>
+              </label>
+
+              <label class="timing-row">
+                <span>Grace before rejoining</span>
+                <span class="num">
+                  <input id="loadingGrace" type="number" min="5" max="600" />
+                  <span class="unit">s</span>
+                </span>
+              </label>
+
+              <label class="timing-row">
+                <span>Cooldown between rounds</span>
+                <span class="num">
+                  <input id="reconnectCooldown" type="number" min="5" max="600" />
+                  <span class="unit">s</span>
+                </span>
+              </label>
+
+              <label class="timing-row">
+                <span>Join timeout</span>
+                <span class="num">
+                  <input id="startTimeout" type="number" min="15" max="600" />
+                  <span class="unit">s</span>
+                </span>
+              </label>
+
+              <label class="timing-row">
+                <span>Attempts per round</span>
+                <span class="num">
+                  <input id="maxAttempts" type="number" min="1" max="10" />
+                  <span class="unit"></span>
+                </span>
+              </label>
+            </div>
+
+            <button id="reset-timing" class="btn small quiet reset">
+              Reset to defaults
+            </button>
+          </details>
         </div>
-
-        <div class="grid">
-          <label class="field">
-            <span class="field-label">Check every (s)</span>
-            <input id="checkInterval" type="number" min="2" max="120" />
-          </label>
-
-          <label class="field">
-            <span class="field-label">Scan for instances (s)</span>
-            <input id="discoveryInterval" type="number" min="2" max="300" />
-          </label>
-
-          <label class="field">
-            <span class="field-label">Grace before rejoin (s)</span>
-            <input id="loadingGrace" type="number" min="5" max="600" />
-          </label>
-
-          <label class="field">
-            <span class="field-label">Cooldown between tries (s)</span>
-            <input id="reconnectCooldown" type="number" min="5" max="600" />
-          </label>
-
-          <label class="field">
-            <span class="field-label">Join timeout (s)</span>
-            <input id="startTimeout" type="number" min="15" max="600" />
-          </label>
-
-          <label class="field">
-            <span class="field-label">Attempts per round</span>
-            <input id="maxAttempts" type="number" min="1" max="10" />
-          </label>
-        </div>
-
-        <label class="switch-row">
-          <input id="autoStart" type="checkbox" />
-          <span><strong>Start watching when the app opens</strong></span>
-        </label>
-
-        <label class="switch-row">
-          <input id="minimizeToTray" type="checkbox" />
-          <span>
-            <strong>Keep running in the tray</strong>
-            <small>Closing the window hides it instead of stopping.</small>
-          </span>
-        </label>
-
-        <p class="muted small">
-          Settings and links are saved in your Windows app-data folder, never
-          inside the app itself.
-        </p>
       </div>
     </div>
 

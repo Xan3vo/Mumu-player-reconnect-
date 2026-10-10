@@ -1,75 +1,41 @@
 /*
- * MuMu Reconnect - dark UI.
+ * MuMu Reconnect.
  *
- * Every class the renderer touches is kept: .dot and .state-badge take a
- * state suffix (game, menu, loading, reconnecting, other, unknown), log
- * rows take a level (info, warn, error), and .hidden hides anything.
+ * A utility, so it should look like one: flat surfaces, hairline
+ * dividers, small radii, and colour only where it carries meaning
+ * (instance status, warnings). No cards, glows or gradients.
+ *
+ * Classes the renderer toggles: .hidden; .dot / .state-badge / .run-dot
+ * with a state suffix; .active on list rows and filter buttons; .on on
+ * the power button; .maximized on the maximise button; .collapsed on the
+ * activity pane; log rows take info / warn / error and .filtered.
  */
 
 :root {
-  /* Surfaces, lightest last. */
-  --bg: #0b0d12;
-  --surface: #12151d;
-  --surface-2: #171b25;
-  --surface-3: #1e2430;
+  --bg: #0f1012;
+  --panel: #141517;
+  --raised: #1b1c1f;
+  --hover: #212226;
+  --active: #27282d;
 
-  /* Borders are translucent so they sit correctly on any surface. */
-  --line: rgba(255, 255, 255, 0.07);
-  --line-strong: rgba(255, 255, 255, 0.13);
+  --border: #232428;
+  --border-strong: #303136;
 
-  --text: #e8edf5;
-  --muted: #8b97ab;
-  --faint: #5d6878;
+  --text: #e3e4e6;
+  --muted: #989aa1;
+  --faint: #62646b;
 
-  --accent: #5b8cff;
-  --accent-soft: rgba(91, 140, 255, 0.14);
-  --good: #3ddc9a;
-  --good-soft: rgba(61, 220, 154, 0.13);
-  --warn: #f5b942;
-  --warn-soft: rgba(245, 185, 66, 0.13);
-  --bad: #ff6b6b;
-  --bad-soft: rgba(255, 107, 107, 0.13);
+  --accent: #4d8af0;
 
-  --radius: 14px;
-  --radius-sm: 10px;
-  --radius-xs: 8px;
+  --green: #3fb950;
+  --amber: #d29922;
+  --red: #f85149;
 
-  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.55);
-
-  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+  --radius-sm: 4px;
 }
 
 * {
   box-sizing: border-box;
-}
-
-::selection {
-  background: var(--accent-soft);
-}
-
-/* Windows draws a bright default scrollbar that fights the dark theme. */
-::-webkit-scrollbar {
-  width: 11px;
-  height: 11px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  border: 3px solid transparent;
-  border-radius: 999px;
-  background-clip: content-box;
-  background-color: rgba(255, 255, 255, 0.11);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
-::-webkit-scrollbar-corner {
-  background: transparent;
 }
 
 html,
@@ -81,160 +47,287 @@ body {
 body {
   display: grid;
   grid-template-rows: auto 1fr auto;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.55 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  overflow: hidden;
+  font: 13px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
+/* The update banner is an extra row, so it pushes content down. */
+body:has(.update-banner:not(.hidden)) {
+  grid-template-rows: auto auto 1fr auto;
+}
+
 h1,
-h2 {
+h2,
+h3,
+p {
   margin: 0;
-  letter-spacing: -0.01em;
-}
-
-h1 {
-  font-size: 15px;
-  font-weight: 650;
-}
-
-h2 {
-  font-size: 13px;
-  font-weight: 650;
-}
-
-small {
-  line-height: 1.45;
-}
-
-.muted {
-  color: var(--muted);
-}
-
-.small {
-  font-size: 12px;
-}
-
-.mono {
-  font-family: "Cascadia Mono", "Consolas", ui-monospace, monospace;
-  font-size: 12px;
-  font-variant-ligatures: none;
 }
 
 .hidden {
   display: none !important;
 }
 
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.mono {
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  font-size: 12px;
+  font-variant-ligatures: none;
 }
 
-/* ---------------- top bar ---------------- */
+::selection {
+  background: rgba(77, 138, 240, 0.35);
+}
 
-/*
- * The window is frameless, so this bar IS the title bar: it has to be
- * draggable, and everything clickable inside it has to opt back out.
- */
-.topbar {
+:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: content-box;
+  background-color: #2c2d32;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #3a3b41;
+}
+
+/* ---------------- buttons ---------------- */
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+  color: var(--text);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 0.1s, border-color 0.1s, color 0.1s;
+}
+
+.btn:hover {
+  background: var(--hover);
+  border-color: #3b3c42;
+}
+
+.btn:active {
+  background: var(--active);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+  background: var(--raised);
+  border-color: var(--border-strong);
+}
+
+/* Not running: the one thing to do is start, so it gets the weight. */
+.btn.primary {
+  background: var(--text);
+  border-color: var(--text);
+  color: #111214;
+  font-weight: 600;
+}
+
+.btn.primary:hover {
+  background: #fff;
+  border-color: #fff;
+}
+
+/* Running: stopping is not the main action any more. */
+.btn.primary.on {
+  background: var(--raised);
+  border-color: var(--border-strong);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.btn.primary.on:hover {
+  background: var(--hover);
+  border-color: #3b3c42;
+}
+
+.btn.small {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.btn.quiet {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.btn.quiet:hover {
+  background: var(--hover);
+  border-color: transparent;
+  color: var(--text);
+}
+
+.btn.quiet:disabled {
+  background: transparent;
+  border-color: transparent;
+}
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+}
+
+.icon-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.icon-btn svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+
+/* ---------------- title bar ---------------- */
+
+.titlebar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 56px;
-  padding: 0 0 0 18px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
-  -webkit-app-region: drag;
+  gap: 14px;
+  height: 44px;
+  padding-left: 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
   user-select: none;
+  -webkit-app-region: drag;
 }
 
-.topbar button,
-.topbar input {
+.titlebar button,
+.titlebar input {
   -webkit-app-region: no-drag;
 }
 
-.brand {
+.app-id {
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-width: 0;
+  gap: 9px;
+  flex: none;
 }
 
-.brand p {
-  margin: 0;
-  font-size: 12px;
+/* The app icon, drawn inline so its dot can show whether it is running. */
+.app-logo {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.logo-tile {
+  fill: #232428;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 6;
+}
+
+.logo-loop {
+  fill: none;
+  stroke: #e8e9eb;
+  stroke-width: 22;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.run-dot {
+  fill: var(--faint);
+  transition: fill 0.2s;
+}
+
+.run-dot.good {
+  fill: var(--green);
+}
+
+.run-dot.bad {
+  fill: var(--red);
+}
+
+.app-name {
+  font-weight: 600;
+}
+
+.run-state {
+  min-width: 0;
+  padding-left: 14px;
+  border-left: 1px solid var(--border-strong);
+  color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  flex: none;
-  border-radius: 11px;
-  background: linear-gradient(140deg, var(--accent), #8b5cf6);
-  box-shadow: 0 4px 14px rgba(91, 140, 255, 0.35);
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.02em;
-  color: #fff;
-}
-
-.topbar-actions {
+.titlebar-actions {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
   flex: none;
   margin-left: auto;
 }
-
-/* ---------------- window controls ---------------- */
 
 .window-controls {
   display: flex;
   align-self: stretch;
   flex: none;
-  margin-left: 10px;
-  /* Above the settings overlay: dimming the bar is fine, but the close
-     button must stay clickable while the modal is open. */
+  /* Stays clickable above the settings overlay. */
   position: relative;
   z-index: 20;
 }
 
-button.winctl {
+.winctl {
   display: grid;
   place-items: center;
   width: 46px;
   padding: 0;
   border: 0;
-  border-radius: 0;
   background: transparent;
   color: var(--muted);
-  box-shadow: none;
-  transition: background 0.12s var(--ease), color 0.12s var(--ease);
 }
 
-button.winctl:hover {
-  background: rgba(255, 255, 255, 0.08);
+.winctl:hover {
+  background: rgba(255, 255, 255, 0.07);
   color: var(--text);
 }
 
-button.winctl:active {
-  transform: none;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-button.winctl.close:hover {
-  background: #e81123;
+.winctl.close:hover {
+  background: #c42b1c;
   color: #fff;
-}
-
-button.winctl.close:active {
-  background: #f1707a;
 }
 
 .winctl svg {
@@ -246,7 +339,6 @@ button.winctl.close:active {
   shape-rendering: crispEdges;
 }
 
-/* The maximise button carries both glyphs and shows one. */
 .winctl .ico-restore,
 .winctl.maximized .ico-max {
   display: none;
@@ -256,222 +348,166 @@ button.winctl.close:active {
   display: block;
 }
 
-/* ---------------- buttons ---------------- */
+/* ---------------- update banner ---------------- */
 
-button {
-  font: inherit;
-  font-weight: 550;
-  border-radius: var(--radius-xs);
-  border: 1px solid var(--line-strong);
-  padding: 8px 15px;
-  cursor: pointer;
-  color: var(--text);
-  background: var(--surface-2);
-  transition: background 0.16s var(--ease), border-color 0.16s var(--ease),
-    transform 0.08s var(--ease);
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--raised);
+  border-bottom: 1px solid var(--border);
 }
 
-button:hover {
-  border-color: rgba(255, 255, 255, 0.2);
-  background: var(--surface-3);
-}
-
-button:active {
-  transform: translateY(1px);
-}
-
-button.ghost {
-  background: transparent;
-}
-
-button.ghost:hover {
-  background: var(--surface-2);
-}
-
-button.primary {
-  background: var(--accent);
-  border-color: transparent;
-  color: #fff;
-  font-weight: 600;
-  box-shadow: 0 2px 10px rgba(91, 140, 255, 0.3);
-}
-
-button.primary:hover {
-  background: #7ba3ff;
-  border-color: transparent;
-}
-
-/* Watching: the button now stops, so it reads as the destructive action. */
-button.primary.on {
-  background: var(--bad);
-  box-shadow: 0 2px 10px rgba(255, 107, 107, 0.28);
-}
-
-button.primary.on:hover {
-  background: #ff8585;
-}
-
-button.small {
-  padding: 5px 11px;
-  font-size: 12px;
-}
-
-button:disabled {
-  opacity: 0.4;
-  cursor: default;
-  transform: none;
+#update-text {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ---------------- layout ---------------- */
 
 .layout {
   display: grid;
-  grid-template-columns: 296px 1fr;
+  grid-template-columns: 248px minmax(0, 1fr);
   min-height: 0;
 }
+
+.pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 36px;
+  padding: 0 8px 0 14px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+.pane-title {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.count {
+  margin-left: 4px;
+  color: var(--faint);
+  font-weight: 500;
+}
+
+.pane-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------------- instances ---------------- */
 
 .sidebar {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border-right: 1px solid var(--line);
-  background: var(--surface);
-}
-
-.sidebar-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 16px 10px;
-}
-
-.sidebar-head h2 {
-  color: var(--muted);
-  text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: 0.07em;
-}
-
-.pill {
-  min-width: 22px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--surface-3);
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 600;
-  text-align: center;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
 }
 
 .instance-list {
-  list-style: none;
+  flex: 1;
   margin: 0;
-  padding: 4px 10px 14px;
+  padding: 6px;
+  list-style: none;
   overflow-y: auto;
 }
 
 .instance-list li {
-  position: relative;
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 11px 13px;
-  margin-bottom: 4px;
-  border: 1px solid transparent;
+  gap: 10px;
+  padding: 7px 8px;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: background 0.14s var(--ease), border-color 0.14s var(--ease);
+}
+
+.instance-list li + li {
+  margin-top: 1px;
 }
 
 .instance-list li:hover {
-  background: var(--surface-2);
+  background: var(--hover);
 }
 
 .instance-list li.active {
-  background: var(--surface-3);
-  border-color: var(--line-strong);
-}
-
-/* Accent rail marks the selected instance without shifting the layout. */
-.instance-list li.active::before {
-  content: "";
-  position: absolute;
-  left: -1px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 20px;
-  border-radius: 0 3px 3px 0;
-  background: var(--accent);
-}
-
-.dot {
-  width: 9px;
-  height: 9px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--faint);
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
-}
-
-.dot.game {
-  background: var(--good);
-  box-shadow: 0 0 0 3px var(--good-soft);
-}
-
-.dot.menu,
-.dot.loading,
-.dot.reconnecting {
-  background: var(--warn);
-  box-shadow: 0 0 0 3px var(--warn-soft);
-}
-
-.dot.other,
-.dot.unknown {
-  background: var(--bad);
-  box-shadow: 0 0 0 3px var(--bad-soft);
-}
-
-/* A reconnect is in flight - make that legible at a glance. */
-.dot.reconnecting {
-  animation: pulse 1.4s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  50% {
-    opacity: 0.35;
-  }
+  background: var(--active);
 }
 
 .instance-list .meta {
   min-width: 0;
 }
 
-.instance-list .name {
+.instance-list .name,
+.instance-list .sub {
   display: block;
-  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.instance-list .name {
+  font-weight: 500;
 }
 
 .instance-list .sub {
-  display: block;
   color: var(--muted);
   font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.instance-list li.off .name,
+.instance-list li.off .sub {
+  color: var(--faint);
+}
+
+.instance-list li.off .dot {
+  opacity: 0.4;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--faint);
+}
+
+.dot.game {
+  background: var(--green);
+}
+
+.dot.menu,
+.dot.loading,
+.dot.reconnecting {
+  background: var(--amber);
+}
+
+.dot.other,
+.dot.unknown {
+  background: var(--red);
+}
+
+/* A rejoin in flight - the one state worth animating. */
+.dot.reconnecting {
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.3;
+  }
 }
 
 .empty {
-  margin: 4px 16px;
-  padding: 16px 14px;
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-sm);
-  color: var(--muted);
+  margin: 4px 14px;
+  color: var(--faint);
   font-size: 12px;
-  text-align: center;
 }
 
 /* ---------------- detail ---------------- */
@@ -479,65 +515,64 @@ button:disabled {
 .detail {
   min-height: 0;
   overflow-y: auto;
-  padding: 20px 22px 26px;
+  padding: 20px 24px 28px;
 }
 
 .placeholder {
-  max-width: 360px;
-  margin: 72px auto;
+  margin-top: 64px;
   text-align: center;
   color: var(--muted);
 }
 
-.placeholder h2 {
-  margin-bottom: 6px;
-  font-size: 15px;
+.placeholder-title {
+  margin-bottom: 4px;
   color: var(--text);
-}
-
-.placeholder p {
-  margin: 0;
-  font-size: 13px;
+  font-weight: 600;
 }
 
 .detail-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 18px;
 }
 
-.detail-head h2 {
-  font-size: 18px;
-  font-weight: 650;
+.detail-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
 }
 
-.detail-head p {
-  margin: 3px 0 0;
+.detail-title h2 {
+  font-size: 17px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.detail-head-right {
+#detail-serial {
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.detail-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex: none;
 }
 
 .state-badge {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 5px 12px 5px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--line-strong);
-  background: var(--surface-2);
+  gap: 6px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
-/* The badge carries its own status dot. */
 .state-badge::before {
   content: "";
   width: 7px;
@@ -547,454 +582,495 @@ button:disabled {
 }
 
 .state-badge.game {
-  color: var(--good);
-  background: var(--good-soft);
-  border-color: transparent;
+  color: var(--green);
 }
 
 .state-badge.menu,
 .state-badge.loading,
 .state-badge.reconnecting {
-  color: var(--warn);
-  background: var(--warn-soft);
-  border-color: transparent;
+  color: var(--amber);
 }
 
 .state-badge.other,
 .state-badge.unknown {
-  color: var(--bad);
-  background: var(--bad-soft);
-  border-color: transparent;
+  color: var(--red);
 }
 
-/* ---------------- cards and fields ---------------- */
-
-.card {
-  padding: 16px;
-  margin-bottom: 12px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-
-.field {
-  display: block;
-}
-
-.field + .field {
-  margin-top: 14px;
-}
-
-.field-label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 12px;
-  font-weight: 600;
+.detail-stats {
+  margin: 4px 0 18px;
   color: var(--muted);
+  font-size: 12px;
 }
+
+.detail-stats span[id] {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.sep {
+  margin: 0 6px;
+  color: var(--faint);
+}
+
+/* ---------------- settings rows ---------------- */
+
+.rows {
+  border-top: 1px solid var(--border);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+label.row {
+  cursor: pointer;
+}
+
+.row.stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.row-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.row-title {
+  font-weight: 500;
+}
+
+.row-desc {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.path {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: -8px;
+}
+
+.done {
+  color: var(--green);
+  font-size: 12px;
+}
+
+/* ---------------- inputs ---------------- */
 
 input[type="text"],
 input[type="number"] {
   width: 100%;
-  font: inherit;
-  padding: 9px 12px;
-  color: var(--text);
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
   background: var(--bg);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-xs);
-  transition: border-color 0.14s var(--ease), box-shadow 0.14s var(--ease);
+  color: var(--text);
+  font: inherit;
+}
+
+input[type="text"]:hover,
+input[type="number"]:hover {
+  border-color: #3b3c42;
 }
 
 input[type="text"]:focus,
 input[type="number"]:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-input[readonly] {
-  color: var(--muted);
 }
 
 input::placeholder {
   color: var(--faint);
 }
 
-.hint {
-  display: block;
-  margin-top: 7px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.row {
-  display: flex;
-  gap: 8px;
-}
-
-.row input {
-  flex: 1;
-  min-width: 0;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin: 16px 0;
-}
-
-.grid .field + .field {
-  margin-top: 0;
-}
-
-/* ---------------- toggle switch ---------------- */
-
-.switch-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  cursor: pointer;
-}
-
-.switch-row + .switch-row {
-  margin-top: 14px;
-}
-
-.switch-row span {
-  display: block;
-  min-width: 0;
-}
-
-.switch-row small {
-  display: block;
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
+/* Toggle switch, drawn on the plain checkbox. */
 input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
   position: relative;
   flex: none;
-  width: 38px;
-  height: 22px;
-  margin: 1px 0 0;
+  width: 32px;
+  height: 18px;
+  margin: 0;
   border-radius: 999px;
-  border: 1px solid var(--line-strong);
-  background: var(--surface-3);
+  background: #34353b;
   cursor: pointer;
-  transition: background 0.18s var(--ease), border-color 0.18s var(--ease);
+  transition: background-color 0.15s;
 }
 
 input[type="checkbox"]::after {
   content: "";
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: #cfd7e3;
-  transition: transform 0.18s var(--ease), background 0.18s var(--ease);
+  background: #b8bac0;
+  transition: transform 0.15s, background-color 0.15s;
 }
 
 input[type="checkbox"]:checked {
   background: var(--accent);
-  border-color: transparent;
 }
 
 input[type="checkbox"]:checked::after {
   background: #fff;
-  transform: translateX(16px);
+  transform: translateX(14px);
 }
 
-/* ---------------- advanced ---------------- */
+/* ---------------- disclosures ---------------- */
 
-.advanced summary {
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 13px;
+/* Shared by "Advanced" in the detail pane and "Timing" in settings. */
+.advanced summary,
+.timing-group summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--muted);
+  font-weight: 500;
+  cursor: pointer;
   list-style: none;
   user-select: none;
 }
 
-.advanced summary::-webkit-details-marker {
+.advanced summary::-webkit-details-marker,
+.timing-group summary::-webkit-details-marker {
   display: none;
 }
 
-.advanced summary::before {
-  content: "+";
+/* A chevron that turns, rather than a +/- glyph. */
+.advanced summary::before,
+.timing-group summary::before,
+.chevron {
+  content: "";
   display: inline-block;
-  width: 14px;
-  color: var(--faint);
-  font-weight: 700;
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.12s;
 }
 
-.advanced[open] summary::before {
-  content: "-";
+.advanced[open] summary::before,
+.timing-group[open] summary::before {
+  transform: rotate(45deg);
 }
 
-.advanced summary:hover {
+.advanced summary:hover,
+.advanced[open] summary,
+.timing-group summary:hover,
+.timing-group[open] summary {
   color: var(--text);
 }
 
-.advanced[open] summary {
-  margin-bottom: 14px;
-  color: var(--text);
+.advanced {
+  display: block;
 }
 
-/* ---------------- stats ---------------- */
-
-.stats {
+.advanced-body {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 4px;
+  gap: 14px;
+  margin-top: 14px;
 }
 
-.stats > div {
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
+.field {
+  display: grid;
+  gap: 6px;
 }
 
-.stat-value {
-  display: block;
-  font-size: 22px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-}
-
-.stat-label {
-  display: block;
-  margin-top: 2px;
-  color: var(--muted);
+.field-label {
   font-size: 12px;
+  font-weight: 500;
 }
 
-/* ---------------- log ---------------- */
+/* ---------------- activity ---------------- */
 
 .logpane {
   display: flex;
   flex-direction: column;
-  height: 186px;
-  border-top: 1px solid var(--line);
-  background: var(--surface);
+  height: 200px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
 }
 
-.logpane-head {
+/* Collapsed down to its header, so the instance pane gets the room. */
+.logpane.collapsed {
+  height: auto;
+}
+
+.logpane.collapsed .log,
+.logpane.collapsed .pane-actions {
+  display: none;
+}
+
+.logpane.collapsed .pane-head {
+  border-bottom: 0;
+}
+
+.pane-toggle {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--line);
-}
-
-.logpane-head h2 {
+  gap: 8px;
+  height: 26px;
+  margin-left: -6px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--muted);
-  text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: 0.07em;
+  font-size: 12px;
+  font-weight: 600;
 }
 
-.logpane-head div {
+.pane-toggle:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+.pane-toggle .chevron {
+  transform: rotate(45deg);
+}
+
+.logpane.collapsed .pane-toggle .chevron {
+  transform: rotate(-45deg);
+}
+
+/* Two-way switch: All / Problems. */
+.segmented {
   display: flex;
-  gap: 6px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.seg {
+  height: 20px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.seg:hover {
+  color: var(--text);
+}
+
+.seg.active {
+  background: var(--active);
+  color: var(--text);
 }
 
 .log {
   flex: 1;
-  list-style: none;
   margin: 0;
-  padding: 8px 16px 12px;
+  padding: 4px 0 8px;
+  list-style: none;
   overflow-y: auto;
-  font-family: "Cascadia Mono", "Consolas", ui-monospace, monospace;
-  font-size: 12px;
-  line-height: 1.7;
+  user-select: text;
 }
 
+/* time | instance | message, in fixed columns so it scans top to bottom. */
 .log li {
-  padding-left: 10px;
-  border-left: 2px solid transparent;
-  color: var(--text);
+  display: grid;
+  grid-template-columns: 64px 112px minmax(0, 1fr);
+  gap: 12px;
+  padding: 2px 14px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.log li:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.log .time {
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.log .who {
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.log .msg {
+  color: #cfd0d3;
   word-break: break-word;
 }
 
-.log li .time {
-  color: var(--faint);
+/* Problems are marked by colour on the message alone, so the columns
+   stay aligned and the rest of the line stays readable. */
+.log li.warn .msg {
+  color: var(--amber);
 }
 
-.log li .label {
-  color: var(--accent);
-  font-weight: 600;
+.log li.error .msg {
+  color: var(--red);
 }
 
-.log li.warn {
-  border-left-color: var(--warn);
-  color: var(--warn);
+.log li.filtered {
+  display: none;
 }
 
-.log li.error {
-  border-left-color: var(--bad);
-  color: var(--bad);
-}
-
-/* ---------------- settings modal ---------------- */
+/* ---------------- settings ---------------- */
 
 .modal {
   position: fixed;
   inset: 0;
+  z-index: 10;
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(5, 7, 11, 0.6);
-  backdrop-filter: blur(6px);
-  z-index: 10;
-  animation: fade 0.16s var(--ease);
+  background: rgba(0, 0, 0, 0.55);
 }
 
 .modal-card {
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  max-width: 560px;
-  max-height: 100%;
-  overflow-y: auto;
-  padding: 20px 22px 22px;
-  border: 1px solid var(--line-strong);
-  border-radius: 18px;
-  background: var(--surface-2);
-  box-shadow: var(--shadow-lg);
-  animation: rise 0.18s var(--ease);
+  /* Wide enough that the timing labels stay on one line in two columns. */
+  max-width: 600px;
+  /* A percentage here resolves against a grid row that grows with the
+     content, so it never limits anything; cap against the window. */
+  max-height: calc(100vh - 48px);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
 .modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18px;
+  padding: 10px 10px 10px 20px;
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-head h2 {
-  font-size: 16px;
+  font-size: 14px;
+  font-weight: 600;
 }
 
-.modal-card .muted.small {
-  margin: 18px 0 0;
+.modal-body {
+  min-height: 0;
+  padding: 4px 20px 18px;
+  overflow-y: auto;
+}
+
+.group {
+  padding-top: 16px;
+}
+
+.group h3 {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.group .row {
+  padding: 11px 0;
+}
+
+.group .row:last-child {
+  border-bottom: 0;
+}
+
+.timing-group {
+  margin-top: 8px;
   padding-top: 14px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--border);
 }
 
-@keyframes fade {
-  from {
-    opacity: 0;
-  }
+.timing-note {
+  margin: 8px 0 4px;
 }
 
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.99);
-  }
+.timing {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+}
+
+.timing-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.num {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.num input {
+  width: 58px;
+  height: 26px;
+  padding: 0 6px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  width: 8px;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.reset {
+  margin: 10px 0 0 -8px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    animation: none !important;
+    transition: none !important;
   }
 }
 
-/* Narrow windows: the instance column would squeeze the detail pane. */
-@media (max-width: 820px) {
+@media (max-width: 860px) {
   .layout {
-    grid-template-columns: 220px 1fr;
+    grid-template-columns: 200px minmax(0, 1fr);
   }
 
-  .grid {
+  .timing {
     grid-template-columns: minmax(0, 1fr);
   }
-}
 
-/* ---------------- self-check ---------------- */
-
-.selfcheck {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 16px;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-
-.selfcheck strong {
-  display: block;
-  font-size: 13px;
-}
-
-.selfcheck small {
-  display: block;
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.selfcheck button {
-  flex: none;
-}
-
-/* ---------------- update banner ---------------- */
-
-/* The banner is an extra body row, so it pushes the layout down rather
-   than floating over the instance list. */
-body:has(.update-banner:not(.hidden)) {
-  grid-template-rows: auto auto 1fr auto;
-}
-
-.update-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 18px;
-  background: var(--accent-soft);
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
-}
-
-.update-dot {
-  width: 7px;
-  height: 7px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 0 3px rgba(91, 140, 255, 0.18);
-}
-
-#update-text {
-  flex: 1;
-  min-width: 0;
-}
-
-.update-banner button {
-  flex: none;
-}
-
-#update-link {
-  border-color: var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-}
-
-#update-link:hover {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
+  .run-state {
+    display: none;
+  }
 }

@@ -12,8 +12,12 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('instance:save', { key, patch }),
 
   reconnectNow: (serial) => ipcRenderer.invoke('instance:reconnect', serial),
+  reconnectAll: () => ipcRenderer.invoke('instance:reconnectAll'),
+
+  applyUrlToAll: (url) => ipcRenderer.invoke('instance:applyUrlToAll', url),
 
   saveGeneral: (patch) => ipcRenderer.invoke('settings:general', patch),
+  resetTiming: () => ipcRenderer.invoke('settings:resetTiming'),
   setMuMuRoot: (root) => ipcRenderer.invoke('settings:mumuRoot', root),
   browseMuMuRoot: () => ipcRenderer.invoke('settings:browseRoot'),
 

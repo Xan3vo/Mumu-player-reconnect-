@@ -10,7 +10,8 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win",
-    "pack": "electron-builder --win --dir"
+    "pack": "electron-builder --win --dir",
+    "icons": "electron scripts/render-icons.js"
   },
   "devDependencies": {
     "electron": "^31.7.7",

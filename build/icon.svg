@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!--
+    MuMu Reconnect app icon. Source for build/icon.png and the window and
+    tray icons in src/assets - regenerate them with `npm run icons`.
+
+    A loop arrow coming round to a green dot: the instance coming back to
+    a live game. The green is the same one the app uses for "in a game".
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#202125" />
+      <stop offset="1" stop-color="#131417" />
+    </linearGradient>
+  </defs>
+
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#tile)" />
+  <rect
+    x="10" y="10" width="236" height="236" rx="54"
+    fill="none" stroke="#ffffff" stroke-opacity="0.09" stroke-width="4"
+  />
+
+  <g
+    fill="none" stroke="#e8e9eb" stroke-width="20"
+    stroke-linecap="round" stroke-linejoin="round"
+  >
+    <path d="M 189.76 133.40 A 62 62 0 1 1 138.77 66.94" />
+    <polyline points="122.45,90.46 152.56,69.37 131.47,39.26" />
+  </g>
+
+  <circle cx="183" cy="98" r="17" fill="#3fb950" />
+</svg>

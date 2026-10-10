@@ -39,6 +39,10 @@ class Watchdog extends EventEmitter {
     this.instances = new Map();
     this.logBuffer = [];
 
+    // Increasing id per entry, so the renderer can tell a line it was
+    // sent live apart from the same line arriving again in the history.
+    this.logSeq = 0;
+
     this.refreshPaths();
   }
 
@@ -84,6 +88,7 @@ class Watchdog extends EventEmitter {
 
   log(message, { label = null, level = 'info' } = {}) {
     const entry = {
+      id: ++this.logSeq,
       time: new Date().toISOString(),
       level,
       label,
@@ -648,6 +653,8 @@ class Watchdog extends EventEmitter {
         });
 
         this.setState(serial, 'MENU', 'Could not rejoin');
+
+        await this.captureFailure(serial, label);
       }
     } finally {
       const still = this.instances.get(serial);
@@ -696,6 +703,37 @@ class Watchdog extends EventEmitter {
     return false;
   }
 
+  /** Rejoin every enabled instance that is not already in a game. */
+  async reconnectAll() {
+    const general = this.store.getGeneral();
+    const targets = [];
+
+    for (const [serial, info] of this.instances) {
+      const settings = this.store.getInstance(info.key);
+
+      if (settings.enabled && settings.joinUrl && info.state !== 'GAME') {
+        targets.push([serial, settings]);
+      }
+    }
+
+    if (!targets.length) {
+      this.log('Nothing to rejoin - every enabled instance is in a game.');
+      return 0;
+    }
+
+    this.log('Rejoining ' + targets.length + ' instance(s).');
+
+    // In parallel: these are separate emulators and waiting for each in
+    // turn would take attempts x timeout seconds per instance.
+    await Promise.all(
+      targets.map(([serial, settings]) =>
+        this.reconnect(serial, general, settings, { manual: true })
+      )
+    );
+
+    return targets.length;
+  }
+
   /** Manual "rejoin now" button. Ignores the cooldown. */
   async reconnectNow(serial) {
     const info = this.instances.get(serial);
@@ -712,6 +750,76 @@ class Watchdog extends EventEmitter {
     );
 
     return true;
+  }
+
+  // ---------------------------------------------------------------
+  //  Failure capture
+  // ---------------------------------------------------------------
+
+  /**
+   * Save what the instance looked like when a rejoin gave up.
+   *
+   * A join that fails is usually Roblox showing something on screen -
+   * an error, a login prompt, a full server - and that is invisible
+   * from here. Writing the screen and the device log to disk turns
+   * "it failed sometimes" into something readable after the fact.
+   */
+  async captureFailure(serial, label) {
+    if (!this.logFile) {
+      return;
+    }
+
+    const dir = path.join(path.dirname(this.logFile), 'failures');
+
+    const stamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, '-')
+      .slice(0, 19);
+
+    const safe = String(label).replace(/[^a-z0-9_-]+/gi, '_');
+    const base = path.join(dir, safe + '-' + stamp);
+
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+
+      const shot = await this.adb.screenshot(serial, base + '.png');
+      const log = await this.adb.recentLog(serial);
+
+      if (log) {
+        fs.writeFileSync(base + '.log', log, 'utf8');
+      }
+
+      if (shot || log) {
+        this.log(
+          'Saved what the screen looked like to the failures folder ' +
+            '(Open log folder).',
+          { label }
+        );
+      }
+
+      this.pruneFailures(dir);
+    } catch (err) {
+      // Diagnostics must never take the watchdog down.
+    }
+  }
+
+  /** Keep the newest 40 captures so this cannot fill a disk. */
+  pruneFailures(dir) {
+    try {
+      const entries = fs
+        .readdirSync(dir)
+        .map((name) => ({
+          name,
+          time: fs.statSync(path.join(dir, name)).mtimeMs
+        }))
+        .sort((a, b) => b.time - a.time);
+
+      for (const entry of entries.slice(40)) {
+        fs.unlinkSync(path.join(dir, entry.name));
+      }
+    } catch (err) {
+      /* nothing worth doing here */
+    }
   }
 
   // ---------------------------------------------------------------
