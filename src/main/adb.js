@@ -104,6 +104,45 @@ class Adb {
       Object.keys(all).filter((serial) => all[serial] === 'device')
     );
   }
+
+  /**
+   * Grab the device screen and write it to destPath on this PC.
+   *
+   * Goes via a file on the device rather than piping stdout: adb
+   * mangles binary on the way through on Windows.
+   */
+  async screenshot(device, destPath) {
+    const remote = '/sdcard/mumu-reconnect-snapshot.png';
+
+    const shot = await this.run(['shell', 'screencap', '-p', remote], {
+      device,
+      timeout: 20000
+    });
+
+    if (shot.code !== 0) {
+      return false;
+    }
+
+    const pulled = await this.run(['pull', remote, destPath], {
+      device,
+      timeout: 30000
+    });
+
+    // Tidy up so the emulator does not accumulate these.
+    await this.run(['shell', 'rm', '-f', remote], { device, timeout: 10000 });
+
+    return pulled.code === 0;
+  }
+
+  /** Recent device log, newest last. Empty string when unavailable. */
+  async recentLog(device, lines = 400) {
+    const { code, stdout } = await this.run(
+      ['logcat', '-d', '-v', 'brief', '-t', String(lines)],
+      { device, timeout: 20000 }
+    );
+
+    return code === 0 ? stdout : '';
+  }
 }
 
 module.exports = { Adb };

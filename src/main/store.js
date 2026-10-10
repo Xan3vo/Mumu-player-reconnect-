@@ -28,7 +28,11 @@ const DEFAULT_INSTANCE = {
   enabled: false,
   joinUrl: '',
   package: 'com.roblox.client',
-  launchComponent: 'com.roblox.client/.ActivityProtocolLaunch'
+  launchComponent: 'com.roblox.client/.ActivityProtocolLaunch',
+  // Start the MuMu instance again whenever it is not running - after a
+  // crash, a freeze, or being closed by hand - until this is turned off
+  // or watching stops.
+  relaunchMuMu: false
 };
 
 /**

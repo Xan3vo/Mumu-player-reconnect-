@@ -123,11 +123,59 @@ async function probePorts(adb) {
   return found;
 }
 
+/**
+ * Run a MuMuManager "control" action on one instance: launch, shutdown
+ * or restart.
+ *
+ * MuMuManager answers with JSON, {"errcode": 0, "errmsg": ""} on success
+ * and a non-zero errcode with a reason otherwise (e.g. -200 "player index
+ * not found"). Launching an instance that is already running is a no-op
+ * that still returns 0.
+ */
+function controlInstance(managerPath, index, action) {
+  return new Promise((resolve) => {
+    if (!managerPath || !fs.existsSync(managerPath)) {
+      resolve({ ok: false, message: 'MuMuManager not found' });
+      return;
+    }
+
+    execFile(
+      managerPath,
+      ['control', '-v', String(index), action],
+      // A cold launch can take a while before MuMuManager answers.
+      { timeout: 120000, windowsHide: true, maxBuffer: 1024 * 1024 },
+      (error, stdout) => {
+        let reply = null;
+
+        try {
+          reply = JSON.parse(stdout);
+        } catch (err) {
+          reply = null;
+        }
+
+        if (reply && reply.errcode === 0) {
+          resolve({ ok: true, message: '' });
+          return;
+        }
+
+        const message =
+          (reply && reply.errmsg) ||
+          (error && error.killed ? 'timed out' : '') ||
+          (error && error.message) ||
+          'no response';
+
+        resolve({ ok: false, message });
+      }
+    );
+  });
+}
+
 module.exports = {
   BASE_PORT,
   PORT_STRIDE,
   MAX_INSTANCES,
   portForIndex,
   queryManager,
-  probePorts
+  probePorts,
+  controlInstance
 };
