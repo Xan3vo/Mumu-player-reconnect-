@@ -219,6 +219,101 @@ function setMaximized(maximized) {
   button.setAttribute('aria-label', button.title);
 }
 
+// ------------------------------------------------------------------
+//  Number steppers
+// ------------------------------------------------------------------
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function chevron(direction) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 8 5');
+  svg.setAttribute('aria-hidden', 'true');
+
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', direction === 'up' ? 'M1 4l3-3 3 3' : 'M1 1l3 3 3-3');
+  svg.appendChild(path);
+
+  return svg;
+}
+
+/**
+ * Replace the browser's spin buttons - drawn white by Windows whatever the
+ * theme - with small chevrons that match the rest of the UI.
+ *
+ * Steps go through stepUp/stepDown, so min, max and step still apply, and
+ * fire "input" like typing does, so the normal save path picks them up.
+ * Holding a button repeats, as the native control does.
+ */
+function addSteppers(input) {
+  const field = document.createElement('span');
+  field.className = 'num-field';
+  input.replaceWith(field);
+  field.appendChild(input);
+
+  const stepper = document.createElement('span');
+  stepper.className = 'stepper';
+
+  for (const direction of ['up', 'down']) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'step';
+    // Keep Tab moving between the fields, not through every arrow.
+    button.tabIndex = -1;
+    button.setAttribute('aria-label', direction === 'up' ? 'Increase' : 'Decrease');
+    button.appendChild(chevron(direction));
+
+    let delay = null;
+    let repeat = null;
+
+    const step = () => {
+      const before = input.value;
+
+      if (direction === 'up') {
+        input.stepUp();
+      } else {
+        input.stepDown();
+      }
+
+      if (input.value !== before) {
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    };
+
+    const stop = () => {
+      clearTimeout(delay);
+      clearInterval(repeat);
+    };
+
+    button.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) {
+        return;
+      }
+
+      // Stop the press stealing focus from the field, and from the
+      // label wrapped around it.
+      event.preventDefault();
+
+      step();
+      delay = setTimeout(() => {
+        repeat = setInterval(step, 60);
+      }, 400);
+    });
+
+    button.addEventListener('pointerup', stop);
+    button.addEventListener('pointerleave', stop);
+    button.addEventListener('pointercancel', stop);
+
+    // The label around the row would otherwise forward this click to the
+    // input; the step already happened on pointerdown.
+    button.addEventListener('click', (event) => event.preventDefault());
+
+    stepper.appendChild(button);
+  }
+
+  field.appendChild(stepper);
+}
+
 function isProblem(li) {
   return li.dataset.level === 'warn' || li.dataset.level === 'error';
 }
@@ -550,6 +645,8 @@ function wire() {
   });
 
   for (const key of NUMERIC_SETTINGS) {
+    addSteppers($(key));
+
     $(key).addEventListener('input', (event) => {
       const value = Number.parseInt(event.target.value, 10);
 

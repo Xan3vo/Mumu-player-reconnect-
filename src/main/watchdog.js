@@ -729,7 +729,10 @@ class Watchdog extends EventEmitter {
     // Roblox is up but not in a game. That covers the loading screen, a
     // join in progress, and being dumped back on the home screen after a
     // disconnect. Give it room to finish rather than killing it mid-join.
-    if (state === 'LOADING' || state === 'MENU') {
+    // DISCONNECTED: still on the game screen but the server has gone quiet -
+    // a kick, a server shutdown or a dropped connection, whatever the dialog
+    // says. Same grace as the others, so a lag spike does not cost a game.
+    if (state === 'LOADING' || state === 'MENU' || state === 'DISCONNECTED') {
       if (!info.waitingSince) {
         info.waitingSince = Date.now();
       }
@@ -737,19 +740,24 @@ class Watchdog extends EventEmitter {
       const stuckFor = (Date.now() - info.waitingSince) / 1000;
 
       if (stuckFor < general.loadingGrace) {
-        const detail =
-          state === 'LOADING'
-            ? 'Loading, waiting'
-            : 'On the home screen (' + Math.round(stuckFor) + 's)';
+        const seconds = ' (' + Math.round(stuckFor) + 's)';
+        const detail = {
+          LOADING: 'Loading, waiting',
+          MENU: 'On the home screen' + seconds,
+          DISCONNECTED: 'Disconnected from the server' + seconds
+        }[state];
 
         this.setState(serial, state, detail);
 
         if (previous !== state) {
           this.log(
-            state === 'LOADING'
-              ? 'Roblox is loading. Waiting.'
-              : 'Roblox is on the home screen, not in a game. Waiting.',
-            { label: this.labelFor(serial) }
+            {
+              LOADING: 'Roblox is loading. Waiting.',
+              MENU: 'Roblox is on the home screen, not in a game. Waiting.',
+              DISCONNECTED:
+                'No traffic from the game server - disconnected or kicked. Waiting.'
+            }[state],
+            { label: this.labelFor(serial), level: state === 'DISCONNECTED' ? 'warn' : 'info' }
           );
         }
 
